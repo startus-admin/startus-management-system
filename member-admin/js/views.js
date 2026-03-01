@@ -28,3 +28,5 @@ export function switchTab(tabName) {
 
   if (onTabChange) onTabChange(tabName);
 }
+
+export function getCurrentTab() { return currentTab; }
