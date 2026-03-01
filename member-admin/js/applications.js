@@ -255,6 +255,14 @@ function applyAppFilters() {
     result = result.filter(a => appFilters.status.includes(a.status));
   }
 
+  if (appFilters.classes.length > 0) {
+    result = result.filter(a => {
+      const fd = a.form_data || {};
+      const cls = Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes || fd.classroom || '').split(/[,・]/).filter(Boolean);
+      return cls.some(c => appFilters.classes.includes(c));
+    });
+  }
+
   if (appFilters.assignee.length > 0) {
     result = result.filter(a => {
       if (appFilters.assignee.includes('unassigned') && !a.assigned_to) return true;
