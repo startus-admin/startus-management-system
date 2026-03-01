@@ -2582,7 +2582,7 @@ body {
   background: var(--gray-200);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .sch-week-col {
@@ -2708,7 +2708,7 @@ body {
   background: white;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .sch-month-cell.sch-cell-sun .sch-month-date { color: var(--danger-color); }
@@ -3599,6 +3599,10 @@ body {
   }
 
   /* Schedule mobile */
+  .schedule-main-content {
+    padding: 8px !important;
+  }
+
   .sch-toolbar {
     flex-direction: column;
     gap: 8px;
@@ -3621,22 +3625,104 @@ body {
   }
 
   .sch-week-grid {
-    grid-template-columns: repeat(7, minmax(110px, 1fr));
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0;
   }
 
   .sch-week-col {
-    min-height: 120px;
+    min-height: 80px;
+  }
+
+  .sch-week-header {
+    padding: 4px 1px;
+    gap: 0;
+  }
+
+  .sch-week-dow {
+    font-size: 0.6rem;
+  }
+
+  .sch-week-date {
+    font-size: 0.68rem;
+  }
+
+  .sch-today-circle {
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    font-size: 0.65rem;
+  }
+
+  .sch-week-body {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .sch-week-card {
+    padding: 3px 4px;
+    border-left-width: 2px;
+  }
+
+  .sch-week-card-title {
+    font-size: 0.6rem;
+  }
+
+  .sch-week-card-time {
+    font-size: 0.55rem;
+  }
+
+  .sch-week-card-venue {
+    display: none;
+  }
+
+  .sch-week-card-meta {
+    gap: 2px;
+    margin-top: 1px;
+  }
+
+  .sch-meta-coach {
+    font-size: 0.55rem;
+  }
+
+  .sch-tag-ng-sm {
+    font-size: 0.5rem;
+    padding: 0 2px;
+  }
+
+  .sch-event-counts {
+    gap: 2px;
+  }
+
+  .sch-event-counts .sch-count {
+    font-size: 0.5rem;
+    padding: 0 2px;
+  }
+
+  .sch-week-card-memo {
+    display: none;
   }
 
   .sch-month-cell {
-    min-height: 55px;
+    min-height: 50px;
     padding: 2px;
   }
 
+  .sch-month-date {
+    font-size: 0.65rem;
+  }
+
+  .sch-month-header-cell {
+    padding: 4px 2px;
+    font-size: 0.68rem;
+  }
+
   .sch-month-chip {
-    font-size: 0.58rem;
+    font-size: 0.5rem;
+    padding: 0 2px;
+  }
+
+  .sch-month-more {
+    font-size: 0.5rem;
   }
 
   .sch-year-grid {
