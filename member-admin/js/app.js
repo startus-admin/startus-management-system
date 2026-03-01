@@ -252,6 +252,8 @@ window.memberApp = {
   removeImportRow,
   executeImport,
   exportCSV,
+  exportApplicationsCSV,
+  exportTrialsCSV,
   closeModal,
   toggleFilterPanel,
   openFeeEditForm,
