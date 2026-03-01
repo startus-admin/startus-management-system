@@ -1058,9 +1058,7 @@ function renderTrialListOnly() {
 
 export function toggleTrialFilterPanel() {
   const panel = document.getElementById('trial-filter-panel');
-  if (panel) {
-    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-  }
+  if (panel) panel.classList.toggle('open');
 }
 
 // --- ユーティリティ ---
