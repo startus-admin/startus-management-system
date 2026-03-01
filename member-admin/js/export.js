@@ -1,7 +1,14 @@
 import { showToast } from './app.js';
 import { getFilteredMembers } from './members.js';
+import { getFilteredApplications } from './applications.js';
+import { getFilteredTrials } from './trials.js';
+import { getStaffById } from './staff.js';
 import { formatDate } from './utils.js';
 import { getCurrentFiscalYear, loadAllFees } from './fees.js';
+
+const APP_TYPE_LABELS = { join: '入会', withdrawal: '退会', suspension: '休会', reinstatement: '復会', change: '変更' };
+const APP_STATUS_LABELS = { pending: '未対応', reviewed: '確認済み', approved: '承認', rejected: '却下' };
+const TRIAL_STATUS_LABELS = { pending: '未対応', reviewed: '受付済み', approved: '体験済み', enrolled: '入会済み', rejected: 'キャンセル' };
 
 export async function exportCSV() {
   const members = getFilteredMembers();
