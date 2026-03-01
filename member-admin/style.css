@@ -2562,6 +2562,8 @@ body {
 .sch-count-trial { background: #fef3c7; color: #92400e; }
 .sch-count-join { background: #dcfce7; color: #166534; }
 .sch-count-withdrawal { background: #fef2f2; color: #991b1b; }
+.sch-count-suspension { background: #f3e8ff; color: #6b21a8; }
+.sch-count-reinstatement { background: #e0f2fe; color: #0c4a6e; }
 
 .sch-event-memo {
   font-size: 0.72rem;
