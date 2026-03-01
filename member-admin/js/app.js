@@ -43,7 +43,7 @@ import { renderCalendar, navigateCalendarDay, goToToday, refreshCalendar, author
 import {
   renderSchedule, navigateSchedule, goToScheduleToday,
   refreshSchedule, changeScheduleView, showScheduleEventDetail,
-  navigateScheduleToDate, toggleAppSummary
+  navigateScheduleToDate, toggleAppSummary, prefetchSchedule
 } from './schedule.js';
 import {
   loadStaff, showStaffDetail, openStaffAddForm, openStaffEditForm,
