@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員管理</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+  <!-- ===== ログイン画面 ===== -->
+  <div id="login-screen">
+    <div class="login-card">
+      <span class="material-icons login-icon">manage_accounts</span>
+      <h1>会員管理</h1>
+      <p>Googleアカウントでログインしてください</p>
+      <button class="btn-google" onclick="window.memberApp.signInWithGoogle()">
+        <svg width="20" height="20" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Googleでログイン
+      </button>
+      <div id="login-error"></div>
+    </div>
+  </div>
+
+  <!-- ===== アプリ画面 ===== -->
+  <div id="app-screen">
+    <!-- ヘッダー -->
+    <header class="app-header">
+      <div class="app-header-left">
+        <span class="material-icons">manage_accounts</span>
+        <h1 id="app-title">会員管理</h1>
+      </div>
+      <div class="app-header-right">
+        <span class="user-email" id="user-email"></span>
+        <button class="btn-logout" onclick="window.memberApp.signOut()" title="ログアウト">
+          <span class="material-icons">logout</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- タブバー -->
+    <nav class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="members" onclick="window.memberApp.switchTab('members')">
+        <span class="material-icons">people</span>会員一覧
+      </button>
+      <button class="tab-btn" data-tab="fee-overview" onclick="window.memberApp.switchTab('fee-overview')">
+        <span class="material-icons">payments</span>会費一覧
+      </button>
+      <button class="tab-btn" data-tab="applications" onclick="window.memberApp.switchTab('applications')">
+        <span class="material-icons">description</span>申請<span class="tab-badge" id="app-tab-badge"></span><span class="tab-badge tab-badge-my" id="app-my-badge" title="自分の担当"></span>
+      </button>
+      <button class="tab-btn" data-tab="trials" onclick="window.memberApp.switchTab('trials')">
+        <span class="material-icons">person_search</span>体験管理<span class="tab-badge" id="trial-tab-badge"></span><span class="tab-badge tab-badge-my" id="trial-my-badge" title="自分の担当"></span>
+      </button>
+      <button class="tab-btn" data-tab="stats" onclick="window.memberApp.switchTab('stats')">
+        <span class="material-icons">bar_chart</span>統計
+      </button>
+      <button class="tab-btn" data-tab="staff" onclick="window.memberApp.switchTab('staff')">
+        <span class="material-icons">badge</span>スタッフ
+      </button>
+      <button class="tab-btn" data-tab="calendar" onclick="window.memberApp.switchTab('calendar')">
+        <span class="material-icons">calendar_month</span>カレンダー
+      </button>
+      <button class="tab-btn" data-tab="schedule" onclick="window.memberApp.switchTab('schedule')">
+        <span class="material-icons">event_note</span>スケジュール
+      </button>
+      <button class="tab-btn" data-tab="master" onclick="window.memberApp.switchTab('master')">
+        <span class="material-icons">tune</span>マスタ
+      </button>
+    </nav>
+
+    <!-- ===== 会員一覧画面 ===== -->
+    <main class="main-content" id="members-screen">
+      <!-- セクションヘッダー -->
+      <div class="section-header">
+        <h2>会員一覧</h2>
+        <div class="section-actions">
+          <button class="btn btn-primary" onclick="window.memberApp.openAddForm()">
+            <span class="material-icons">add</span><span class="btn-text-mobile-hide">追加</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.memberApp.openImportModal()">
+            <span class="material-icons">upload_file</span><span class="btn-text-mobile-hide">インポート</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.memberApp.exportCSV()">
+            <span class="material-icons">download</span><span class="btn-text-mobile-hide">CSV出力</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.memberApp.openGradeUpdateModal()">
+            <span class="material-icons">school</span><span class="btn-text-mobile-hide">学年更新</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.memberApp.openEmailListModal()">
+            <span class="material-icons">email</span><span class="btn-text-mobile-hide">メール</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.memberApp.openGlobalHistory()">
+            <span class="material-icons">history</span><span class="btn-text-mobile-hide">履歴</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.print()">
+            <span class="material-icons">print</span><span class="btn-text-mobile-hide">印刷</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 検索バー -->
+      <div class="search-bar">
+        <span class="material-icons">search</span>
+        <input type="text" id="search-input" placeholder="名前・フリガナ・番号で検索...">
+      </div>
+
+      <!-- ツールバー -->
+      <div class="toolbar">
+        <select id="sort-select" class="sort-select">
+          <option value="name">名前順</option>
+          <option value="member_number">会員番号順</option>
+          <option value="classes">教室順</option>
+          <option value="member_type">種別順</option>
+        </select>
+        <button class="btn-filter-toggle" id="member-filter-toggle" onclick="window.memberApp.toggleFilterPanel()">
+          <span class="material-icons" style="font-size:16px">filter_list</span>
+          絞込
+        </button>
+        <span class="member-count" id="member-count">0名</span>
+
+        <!-- フィルタパネル -->
+        <div class="toolbar-filter-panel" id="filter-panel">
+          <div class="filter-group">
+            <div class="filter-group-label">ステータス</div>
+            <div class="filter-checkboxes" id="status-filter-options">
+              <label class="filter-pill"><input type="checkbox" value="在籍" checked>在籍</label>
+              <label class="filter-pill"><input type="checkbox" value="休会">休会</label>
+              <label class="filter-pill"><input type="checkbox" value="退会">退会</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">種別</div>
+            <div class="filter-checkboxes" id="type-filter-options">
+              <label class="filter-pill"><input type="checkbox" value="会員">会員</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">教室</div>
+            <div class="filter-checkboxes" id="class-filter-options">
+              <!-- 動的生成 -->
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-filter-reset" onclick="window.memberApp.resetMemberFilters()">
+              <span class="material-icons" style="font-size:14px">refresh</span>リセット
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 会員リスト -->
+      <div class="member-list" id="member-list">
+        <div class="empty-state">
+          <span class="material-icons empty-icon">inbox</span>
+          <p>会員データがありません</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== 会費一覧画面 ===== -->
+    <main class="main-content" id="fee-overview-screen" style="display:none">
+      <div class="section-header">
+        <h2>会費一覧</h2>
+        <div class="section-actions">
+          <select id="fee-overview-year" class="fee-year-select"></select>
+          <button class="btn btn-secondary" onclick="window.memberApp.openBulkFeeCheck()">
+            <span class="material-icons">playlist_add_check</span><span class="btn-text-mobile-hide">一括チェック</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.print()">
+            <span class="material-icons">print</span><span class="btn-text-mobile-hide">印刷</span>
+          </button>
+        </div>
+      </div>
+      <div id="fee-overview-table-wrap" class="fee-overview-table-wrap"></div>
+    </main>
+
+    <!-- ===== 申請管理画面 ===== -->
+    <main class="main-content" id="applications-screen" style="display:none">
+      <div class="section-header">
+        <h2>申請管理</h2>
+      </div>
+
+      <!-- 検索バー -->
+      <div class="search-bar">
+        <span class="material-icons">search</span>
+        <input type="text" id="app-search-input" placeholder="名前・フリガナ・会員番号・メールで検索...">
+      </div>
+
+      <!-- ツールバー -->
+      <div class="toolbar">
+        <select id="app-sort-select" class="sort-select">
+          <option value="created_desc">受付日（新→古）</option>
+          <option value="created_asc">受付日（古→新）</option>
+          <option value="name">名前順</option>
+          <option value="type">種別順</option>
+          <option value="status">ステータス順</option>
+        </select>
+        <button class="btn-filter-toggle" id="app-filter-toggle" onclick="window.memberApp.toggleAppFilterPanel()">
+          <span class="material-icons" style="font-size:16px">filter_list</span>
+          絞込
+        </button>
+        <span class="member-count" id="app-count">0件</span>
+
+        <!-- フィルタパネル -->
+        <div class="toolbar-filter-panel" id="app-filter-panel">
+          <div class="filter-group">
+            <div class="filter-group-label">種別</div>
+            <div class="filter-checkboxes" id="app-type-filter">
+              <label class="filter-pill"><input type="checkbox" value="join">入会</label>
+              <label class="filter-pill"><input type="checkbox" value="withdrawal">退会</label>
+              <label class="filter-pill"><input type="checkbox" value="suspension">休会</label>
+              <label class="filter-pill"><input type="checkbox" value="reinstatement">復会</label>
+              <label class="filter-pill"><input type="checkbox" value="change">変更</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">ステータス</div>
+            <div class="filter-checkboxes" id="app-status-filter">
+              <label class="filter-pill"><input type="checkbox" value="pending">未対応</label>
+              <label class="filter-pill"><input type="checkbox" value="reviewed">確認済み</label>
+              <label class="filter-pill"><input type="checkbox" value="approved">承認</label>
+              <label class="filter-pill"><input type="checkbox" value="rejected">却下</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">担当者</div>
+            <div class="filter-checkboxes" id="app-assignee-filter">
+              <!-- 動的生成 -->
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-filter-reset" onclick="window.memberApp.resetAppFilters()">
+              <span class="material-icons" style="font-size:14px">refresh</span>リセット
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ワークロード -->
+      <div class="workload-summary" id="app-workload"></div>
+
+      <!-- 申請リスト -->
+      <div class="member-list" id="app-list">
+        <div class="empty-state">
+          <span class="material-icons empty-icon">description</span>
+          <p>申請データがありません</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== 体験管理画面 ===== -->
+    <main class="main-content" id="trials-screen" style="display:none">
+      <div class="section-header">
+        <h2>体験管理</h2>
+      </div>
+
+      <!-- 検索バー -->
+      <div class="search-bar">
+        <span class="material-icons">search</span>
+        <input type="text" id="trial-search-input" placeholder="名前・学校・メールで検索...">
+      </div>
+
+      <!-- ツールバー -->
+      <div class="toolbar">
+        <select id="trial-sort-select" class="sort-select">
+          <option value="created_desc">受付日（新→古）</option>
+          <option value="created_asc">受付日（古→新）</option>
+          <option value="desired_date">体験希望日順</option>
+          <option value="name">名前順</option>
+          <option value="status">ステータス順</option>
+        </select>
+        <button class="btn-filter-toggle" id="trial-filter-toggle" onclick="window.memberApp.toggleTrialFilterPanel()">
+          <span class="material-icons" style="font-size:16px">filter_list</span>
+          絞込
+        </button>
+        <span class="member-count" id="trial-count">0件</span>
+
+        <!-- フィルタパネル -->
+        <div class="toolbar-filter-panel" id="trial-filter-panel">
+          <div class="filter-group">
+            <div class="filter-group-label">ステータス</div>
+            <div class="filter-checkboxes" id="trial-status-filter">
+              <label class="filter-pill"><input type="checkbox" value="pending">未対応</label>
+              <label class="filter-pill"><input type="checkbox" value="reviewed">受付済み</label>
+              <label class="filter-pill"><input type="checkbox" value="approved">体験済み</label>
+              <label class="filter-pill"><input type="checkbox" value="enrolled">入会済み</label>
+              <label class="filter-pill"><input type="checkbox" value="rejected">キャンセル</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">教室</div>
+            <div class="filter-checkboxes" id="trial-class-filter">
+              <!-- 動的生成 -->
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">担当者</div>
+            <div class="filter-checkboxes" id="trial-assignee-filter">
+              <!-- 動的生成 -->
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-filter-reset" onclick="window.memberApp.resetTrialFilters()">
+              <span class="material-icons" style="font-size:14px">refresh</span>リセット
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ワークロード -->
+      <div class="workload-summary" id="trial-workload"></div>
+
+      <!-- 体験者リスト -->
+      <div class="member-list" id="trial-list">
+        <div class="empty-state">
+          <span class="material-icons empty-icon">person_search</span>
+          <p>体験データがありません</p>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ===== 統計画面 ===== -->
+    <main class="main-content" id="stats-screen" style="display:none">
+      <div class="section-header">
+        <h2>統計ダッシュボード</h2>
+      </div>
+      <div id="stats-content"></div>
+    </main>
+
+    <!-- ===== スタッフ管理画面 ===== -->
+    <main class="main-content" id="staff-screen" style="display:none">
+      <div class="section-header">
+        <h2>スタッフ・コーチ</h2>
+        <div class="section-actions">
+          <button class="btn btn-primary" onclick="window.memberApp.openStaffAddForm()">
+            <span class="material-icons">add</span><span class="btn-text-mobile-hide">追加</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 検索バー -->
+      <div class="search-bar">
+        <span class="material-icons">search</span>
+        <input type="text" id="staff-search-input" placeholder="名前・フリガナ・メールで検索...">
+      </div>
+
+      <!-- ツールバー -->
+      <div class="toolbar">
+        <select id="staff-sort-select" class="sort-select">
+          <option value="name">名前順</option>
+          <option value="role">役職順</option>
+        </select>
+        <button class="btn-filter-toggle" id="staff-filter-toggle" onclick="window.memberApp.toggleStaffFilterPanel()">
+          <span class="material-icons" style="font-size:16px">filter_list</span>
+          絞込
+        </button>
+        <span class="member-count" id="staff-count">0名</span>
+
+        <!-- フィルタパネル -->
+        <div class="toolbar-filter-panel" id="staff-filter-panel">
+          <div class="filter-group">
+            <div class="filter-group-label">役職</div>
+            <div class="filter-checkboxes" id="staff-role-filter">
+              <label class="filter-pill"><input type="checkbox" value="スタッフ">スタッフ</label>
+              <label class="filter-pill"><input type="checkbox" value="指導者">指導者</label>
+              <label class="filter-pill"><input type="checkbox" value="事務局">事務局</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">ステータス</div>
+            <div class="filter-checkboxes" id="staff-status-filter">
+              <label class="filter-pill"><input type="checkbox" value="在籍" checked>在籍</label>
+              <label class="filter-pill"><input type="checkbox" value="退職">退職</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">担当教室</div>
+            <div class="filter-checkboxes" id="staff-class-filter">
+              <!-- 動的生成 -->
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-filter-reset" onclick="window.memberApp.resetStaffFilters()">
+              <span class="material-icons" style="font-size:14px">refresh</span>リセット
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- スタッフリスト -->
+      <div class="member-list" id="staff-list">
+        <div class="empty-state">
+          <span class="material-icons empty-icon">badge</span>
+          <p>スタッフデータがありません</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== カレンダー画面 ===== -->
+    <main class="main-content calendar-main-content" id="calendar-screen" style="display:none">
+      <div id="calendar-content">
+        <div class="fee-loading">読み込み中...</div>
+      </div>
+    </main>
+
+    <!-- ===== スケジュール画面 ===== -->
+    <main class="main-content schedule-main-content" id="schedule-screen" style="display:none">
+      <div id="schedule-content">
+        <div class="fee-loading">読み込み中...</div>
+      </div>
+    </main>
+
+    <!-- ===== マスタ管理画面 ===== -->
+    <main class="main-content" id="master-screen" style="display:none">
+      <div class="section-header">
+        <h2>教室マスタ</h2>
+        <div class="section-actions">
+          <span class="member-count" id="classroom-count"></span>
+          <button class="btn btn-primary" onclick="window.memberApp.openClassroomAddForm()">
+            <span class="material-icons">add</span><span class="btn-text-mobile-hide">教室を追加</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="classroom-table-wrap">
+        <div class="empty-state">
+          <span class="material-icons empty-icon">meeting_room</span>
+          <p>教室データがありません</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== モーダル ===== -->
+  <div class="modal" id="modal">
+    <div class="modal-overlay" onclick="window.memberApp.closeModal()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button class="modal-close" onclick="window.memberApp.closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== チャットFAB ===== -->
+  <button class="chat-fab" id="chat-fab" onclick="window.memberApp.toggleChat()">
+    <span class="material-icons">chat</span>
+    <span class="chat-fab-badge" id="chat-unread-badge"></span>
+  </button>
+
+  <!-- ===== チャットサイドバー ===== -->
+  <div class="chat-sidebar-overlay" id="chat-sidebar-overlay"
+       onclick="window.memberApp.toggleChat()"></div>
+  <div class="chat-sidebar" id="chat-sidebar">
+    <div class="chat-sidebar-header">
+      <h3 id="chat-sidebar-title">チャット</h3>
+      <button class="btn-icon" onclick="window.memberApp.toggleChat()">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+    <div class="chat-sidebar-body" id="chat-sidebar-body">
+      <div class="chat-empty">ログイン後にチャットが利用できます</div>
+    </div>
+  </div>
+
+  <!-- ===== Toast ===== -->
+  <div id="toast-container"></div>
+
+  <!-- ===== App Script ===== -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

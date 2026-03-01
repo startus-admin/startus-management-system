@@ -1,0 +1,376 @@
+import { supabase } from './supabase.js';
+import { escapeHtml } from './utils.js';
+import { showToast, openModal, closeModal, setModalWide } from './app.js';
+
+// --- キャッシュ ---
+let classroomCache = [];
+
+// --- 定数 ---
+const DAYS_OF_WEEK = ['月', '火', '水', '木', '金', '土', '日'];
+const CATEGORIES = ['陸上・マラソン', 'バレエ・ダンス・チア', 'サッカー・フットボール', 'バドミントン', 'テニス', 'キンボールスポーツ', 'その他'];
+
+const DAY_COLORS = {
+  '月': '#6b7280', '火': '#ef4444', '水': '#3b82f6',
+  '木': '#22c55e', '金': '#f59e0b', '土': '#6366f1', '日': '#ef4444'
+};
+
+const CATEGORY_STYLES = {
+  '陸上・マラソン':       { bg: '#fef2f2', color: '#dc2626' },
+  'バレエ・ダンス・チア':  { bg: '#fdf4ff', color: '#a855f7' },
+  'サッカー・フットボール': { bg: '#f0fdf4', color: '#16a34a' },
+  'バドミントン':         { bg: '#ecfdf5', color: '#059669' },
+  'テニス':              { bg: '#fffbeb', color: '#d97706' },
+  'キンボールスポーツ':    { bg: '#fef3c7', color: '#b45309' },
+  'その他':              { bg: '#f0f9ff', color: '#0284c7' },
+};
+
+// --- データ取得 ---
+
+export async function loadClassrooms() {
+  const { data, error } = await supabase
+    .from('classrooms')
+    .select('*')
+    .order('display_order', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('教室マスタ読み込みエラー:', error);
+    classroomCache = [];
+  } else {
+    classroomCache = data || [];
+  }
+  return classroomCache;
+}
+
+export function getClassrooms() {
+  return classroomCache;
+}
+
+export function getActiveClassrooms() {
+  return classroomCache.filter(c => c.is_active);
+}
+
+// --- ヘルパー ---
+
+function dayBadgesHtml(days) {
+  if (!days || !days.length) return '';
+  return days.map(d =>
+    `<span class="cr-day" style="background:${DAY_COLORS[d] || '#6b7280'}">${d}</span>`
+  ).join('');
+}
+
+function categoryHtml(cat) {
+  if (!cat) return '';
+  const s = CATEGORY_STYLES[cat] || { bg: '#f8fafc', color: '#64748b' };
+  return `<span class="cr-cat-badge" style="background:${s.bg};color:${s.color}">${escapeHtml(cat)}</span>`;
+}
+
+function feeHtml(fee) {
+  if (fee == null) return '';
+  return `<span class="cr-fee-val">¥${fee.toLocaleString()}</span>`;
+}
+
+function cellText(val) {
+  return val ? escapeHtml(val) : '';
+}
+
+// --- 教室マスタ画面レンダリング ---
+
+export async function renderClassroomScreen() {
+  await loadClassrooms();
+  renderClassroomView();
+}
+
+function renderClassroomView() {
+  const wrap = document.getElementById('classroom-table-wrap');
+  if (!wrap) return;
+
+  const classrooms = getClassrooms();
+
+  if (classrooms.length === 0) {
+    wrap.innerHTML = `
+      <div class="empty-state">
+        <span class="material-icons empty-icon">meeting_room</span>
+        <p>教室が登録されていません</p>
+      </div>`;
+    return;
+  }
+
+  // 件数表示を更新
+  const countEl = document.getElementById('classroom-count');
+  if (countEl) countEl.textContent = `${classrooms.length}教室`;
+
+  const GRID_HEADER = `
+    <div class="cr-grid-header">
+      <span>#</span>
+      <span>教室名</span>
+      <span>カテゴリ</span>
+      <span>曜日</span>
+      <span>時間</span>
+      <span>対象</span>
+      <span>会場</span>
+      <span>コーチ</span>
+      <span>定員</span>
+      <span>月謝</span>
+      <span>状態</span>
+      <span></span>
+    </div>`;
+
+  const rows = classrooms.map(c => {
+    const statusBadge = c.is_active
+      ? '<span class="cr-status-on">有効</span>'
+      : '<span class="cr-status-off">無効</span>';
+    const inactiveClass = c.is_active ? '' : ' cr-row-inactive';
+    const capacityText = c.capacity != null ? c.capacity + '名' : '';
+
+    return `
+      <div class="list-item cr-row${inactiveClass}" data-id="${c.id}">
+        <div class="grid-cell cr-td-order">${c.display_order}</div>
+        <div class="grid-cell grid-cell-name"><strong>${escapeHtml(c.name)}</strong></div>
+        <div class="grid-cell">${categoryHtml(c.category)}</div>
+        <div class="grid-cell grid-cell-badges">${dayBadgesHtml(c.day_of_week)}</div>
+        <div class="grid-cell cr-td-time">${cellText(c.time_slot)}</div>
+        <div class="grid-cell cr-td-target">${cellText(c.target)}</div>
+        <div class="grid-cell cr-td-venue">${cellText(c.venue)}</div>
+        <div class="grid-cell cr-td-coach">${cellText(c.main_coach)}</div>
+        <div class="grid-cell cr-td-capacity">${capacityText}</div>
+        <div class="grid-cell cr-td-fee">${feeHtml(c.fee)}</div>
+        <div class="grid-cell cr-td-status">${statusBadge}</div>
+        <div class="grid-cell grid-cell-arrow"><span class="material-icons list-item-arrow">chevron_right</span></div>
+      </div>`;
+  }).join('');
+
+  wrap.innerHTML = GRID_HEADER + rows;
+
+  // 行クリックで編集モーダルを開く
+  wrap.querySelectorAll('.cr-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      if (id) openClassroomEditForm(id);
+    });
+  });
+}
+
+// --- 追加 / 編集フォーム ---
+
+export function openClassroomAddForm() {
+  openClassroomForm(null);
+}
+
+export function openClassroomEditForm(id) {
+  const c = classroomCache.find(cr => cr.id === id);
+  if (!c) return;
+  openClassroomForm(c);
+}
+
+function openClassroomForm(classroom) {
+  const isEdit = !!classroom;
+  const c = classroom || {};
+  const title = isEdit ? '教室編集' : '教室追加';
+  const days = c.day_of_week || [];
+
+  const categoryOptions = CATEGORIES.map(cat =>
+    `<option value="${escapeHtml(cat)}" ${c.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`
+  ).join('');
+
+  const dayCheckboxes = DAYS_OF_WEEK.map(d =>
+    `<label class="filter-pill"><input type="checkbox" name="day_of_week" value="${d}" ${days.includes(d) ? 'checked' : ''}>${d}</label>`
+  ).join('');
+
+  const content = `
+    <form id="classroom-form" onsubmit="return false;">
+      <fieldset class="cr-fieldset">
+        <legend>基本情報</legend>
+        <div class="cr-form-grid">
+          <div class="form-group">
+            <label>教室名 <span class="required">*</span></label>
+            <input type="text" name="name" value="${escapeHtml(c.name || '')}" required placeholder="例: かけっこ塾">
+          </div>
+          <div class="form-group">
+            <label>カテゴリ</label>
+            <select name="category">
+              <option value="">選択してください</option>
+              ${categoryOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>曜日</label>
+            <div class="filter-checkboxes" style="gap:4px">${dayCheckboxes}</div>
+          </div>
+          <div class="form-group">
+            <label>時間帯</label>
+            <input type="text" name="time_slot" value="${escapeHtml(c.time_slot || '')}" placeholder="例: 18:00〜19:00">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>会場</label>
+            <input type="text" name="venue" value="${escapeHtml(c.venue || '')}" placeholder="例: 金沢市総合体育館">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="cr-fieldset">
+        <legend>詳細</legend>
+        <div class="cr-form-grid">
+          <div class="form-group">
+            <label>メインコーチ</label>
+            <input type="text" name="main_coach" value="${escapeHtml(c.main_coach || '')}" placeholder="例: 山本 勝裕">
+          </div>
+          <div class="form-group">
+            <label>巡回者</label>
+            <input type="text" name="patrol_coach" value="${escapeHtml(c.patrol_coach || '')}" placeholder="例: 松井 久">
+          </div>
+          <div class="form-group">
+            <label>対象</label>
+            <input type="text" name="target" value="${escapeHtml(c.target || '')}" placeholder="例: 小学1〜6年生">
+          </div>
+          <div class="form-group">
+            <label>定員</label>
+            <input type="number" name="capacity" value="${c.capacity ?? ''}" min="0" placeholder="例: 30">
+          </div>
+          <div class="form-group">
+            <label>月謝（円）</label>
+            <input type="number" name="fee" value="${c.fee ?? ''}" min="0" step="100" placeholder="例: 6600">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="cr-fieldset">
+        <legend>連携・設定</legend>
+        <div class="cr-form-grid">
+          <div class="form-group">
+            <label>表示順</label>
+            <input type="number" name="display_order" value="${c.display_order ?? 0}" min="0">
+          </div>
+          <div class="form-group">
+            <label>クラスコード</label>
+            <input type="text" name="class_code" value="${escapeHtml(c.class_code || '')}" placeholder="例: kidsdance">
+          </div>
+          <div class="form-group">
+            <label>カレンダータグ</label>
+            <input type="text" name="calendar_tag" value="${escapeHtml(c.calendar_tag || '')}" placeholder="例: kidsdance">
+          </div>
+          <div class="form-group">
+            <label>振替グループ</label>
+            <input type="text" name="furikae_group" value="${escapeHtml(c.furikae_group || '')}" placeholder="例: dance">
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="form-group">
+        <label>備考</label>
+        <textarea name="memo" rows="2" placeholder="メモ・備考">${escapeHtml(c.memo || '')}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" name="is_active" ${c.is_active !== false ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--primary-color)">
+          有効（チェックを外すと会員フォームの選択肢に表示されません）
+        </label>
+      </div>
+
+      <div class="form-actions">
+        ${isEdit ? `<button type="button" class="btn btn-danger-outline cr-btn-form-delete" onclick="window.memberApp.confirmDeleteClassroom('${c.id}', '${escapeHtml(c.name)}')">
+          <span class="material-icons">delete</span>削除
+        </button>` : ''}
+        <div class="form-actions-right">
+          <button type="button" class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+          <button type="submit" class="btn btn-primary">
+            <span class="material-icons">save</span>保存
+          </button>
+        </div>
+      </div>
+    </form>`;
+
+  openModal(title, content);
+  setModalWide(true);
+
+  setTimeout(() => {
+    const form = document.getElementById('classroom-form');
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        saveClassroom(form, isEdit ? c.id : null);
+      });
+    }
+  }, 100);
+}
+
+async function saveClassroom(form, id) {
+  const fd = new FormData(form);
+  const dayCheckboxes = form.querySelectorAll('[name="day_of_week"]:checked');
+  const dayOfWeek = Array.from(dayCheckboxes).map(cb => cb.value);
+
+  const data = {
+    name: fd.get('name').trim(),
+    display_order: parseInt(fd.get('display_order'), 10) || 0,
+    is_active: form.querySelector('[name="is_active"]').checked,
+    category: fd.get('category') || '',
+    day_of_week: dayOfWeek,
+    time_slot: fd.get('time_slot').trim(),
+    venue: fd.get('venue').trim(),
+    main_coach: fd.get('main_coach').trim(),
+    patrol_coach: fd.get('patrol_coach').trim(),
+    target: fd.get('target').trim(),
+    capacity: fd.get('capacity') ? parseInt(fd.get('capacity'), 10) : null,
+    fee: fd.get('fee') ? parseInt(fd.get('fee'), 10) : null,
+    calendar_tag: fd.get('calendar_tag').trim(),
+    furikae_group: fd.get('furikae_group').trim(),
+    class_code: fd.get('class_code').trim(),
+    memo: fd.get('memo').trim(),
+  };
+
+  if (!data.name) {
+    showToast('教室名を入力してください', 'warning');
+    return;
+  }
+
+  let error;
+  if (id) {
+    ({ error } = await supabase.from('classrooms').update(data).eq('id', id));
+  } else {
+    ({ error } = await supabase.from('classrooms').insert(data));
+  }
+
+  if (error) {
+    console.error('教室保存エラー:', error);
+    if (error.code === '23505') {
+      showToast('同じ名前の教室が既に存在します', 'error');
+    } else {
+      showToast('保存に失敗しました', 'error');
+    }
+    return;
+  }
+
+  showToast('保存しました', 'success');
+  closeModal();
+  await loadClassrooms();
+  renderClassroomView();
+}
+
+// --- 削除 ---
+
+export function confirmDeleteClassroom(id, name) {
+  const content = `
+    <p>教室「${escapeHtml(name)}」を削除しますか？</p>
+    <p class="text-warning">この教室に所属している会員データには影響しません。</p>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+      <button class="btn btn-danger" onclick="window.memberApp.deleteClassroom('${id}')">
+        <span class="material-icons">delete</span>削除
+      </button>
+    </div>`;
+  openModal('確認', content);
+}
+
+export async function deleteClassroom(id) {
+  const { error } = await supabase.from('classrooms').delete().eq('id', id);
+  if (error) {
+    console.error('教室削除エラー:', error);
+    showToast('削除に失敗しました', 'error');
+    return;
+  }
+  showToast('削除しました', 'success');
+  closeModal();
+  await loadClassrooms();
+  renderClassroomView();
+}
