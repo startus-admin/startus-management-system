@@ -220,6 +220,7 @@ export function getFilteredApplications() { return filteredApplications; }
 let appFilters = {
   types: [],
   status: [],
+  classes: [],
   assignee: [],
   query: '',
 };
