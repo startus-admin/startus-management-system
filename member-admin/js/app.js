@@ -341,5 +341,31 @@ window.memberApp = {
   chatSendMessage,
 };
 
+// --- キーボードショートカット ---
+
+const TAB_SEARCH_MAP = {
+  members: 'search-input',
+  applications: 'app-search-input',
+  trials: 'trial-search-input',
+  staff: 'staff-search-input',
+  master: 'classroom-search-input',
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && !isInputFocused()) {
+    e.preventDefault();
+    const inputId = TAB_SEARCH_MAP[getCurrentTab()];
+    if (inputId) {
+      const el = document.getElementById(inputId);
+      if (el) el.focus();
+    }
+  }
+});
+
+function isInputFocused() {
+  const tag = document.activeElement?.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable;
+}
+
 // DOM Ready
 document.addEventListener('DOMContentLoaded', init);
