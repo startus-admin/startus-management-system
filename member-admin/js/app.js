@@ -128,9 +128,7 @@ export async function copyToClipboard(text) {
 
 function toggleFilterPanel() {
   const panel = document.getElementById('filter-panel');
-  if (panel) {
-    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-  }
+  if (panel) panel.classList.toggle('open');
 }
 
 // --- 初期化 ---
