@@ -4,30 +4,56 @@
 # ============================================================
 #
 # SQLファイルを Supabase データベースに実行するスクリプトです。
-# マイグレーションファイルやデータ追加を自動化できます。
+# Supabase Management API を使って直接実行します。
 #
 # 使い方:
 #   bash scripts/run-sql.sh <SQLファイル>
 #   bash scripts/run-sql.sh migration-chat.sql
 #   bash scripts/run-sql.sh setup-all.sql
 #
-# 初回セットアップ:
-#   1. Supabase CLI をインストール: npm install -g supabase
-#   2. ログイン: supabase login
-#   3. プロジェクトをリンク: supabase link --project-ref jfsxywwufwdprqdkyxhr
-#
-# または直接データベース接続:
-#   環境変数 DATABASE_URL を設定してください
-#   例: export DATABASE_URL="postgresql://postgres:パスワード@db.jfsxywwufwdprqdkyxhr.supabase.co:5432/postgres"
+# --force オプション: 確認なしで実行（Claude Code からの自動実行用）
+#   bash scripts/run-sql.sh --force migration-chat.sql
 # ============================================================
 
 set -e
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_REF="jfsxywwufwdprqdkyxhr"
+
+# Supabase アクセストークンの取得
+# 優先順: 環境変数 > Supabase CLIの保存トークン
+get_token() {
+  if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then
+    echo "$SUPABASE_ACCESS_TOKEN"
+    return
+  fi
+  # Supabase CLI が保存しているトークンを探す
+  local token_file="$HOME/.supabase/access-token"
+  if [ -f "$token_file" ]; then
+    cat "$token_file"
+    return
+  fi
+  # Windows の AppData パスも確認
+  local win_token_file="$HOME/AppData/Roaming/supabase/access-token"
+  if [ -f "$win_token_file" ]; then
+    cat "$win_token_file"
+    return
+  fi
+  echo ""
+}
+
+# --force オプションの確認
+FORCE=false
+if [ "$1" = "--force" ]; then
+  FORCE=true
+  shift
+fi
+
 SQL_FILE="$1"
 
 if [ -z "$SQL_FILE" ]; then
   echo "使い方: bash scripts/run-sql.sh <SQLファイル>"
+  echo "        bash scripts/run-sql.sh --force <SQLファイル>"
   echo ""
   echo "利用可能なSQLファイル:"
   ls -1 "$REPO_DIR"/*.sql 2>/dev/null | while read f; do
@@ -53,63 +79,61 @@ echo ""
 # migration ファイルの二重実行警告
 BASENAME="$(basename "$SQL_FILE")"
 if [[ "$BASENAME" == migration-* ]] || [[ "$BASENAME" == setup-* ]]; then
-  echo "⚠  注意: このファイルは一度だけ実行してください。"
-  echo "   二重実行するとデータが重複する可能性があります。"
-  echo ""
-  read -p "実行しますか？ (y/N): " CONFIRM
-  if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
-    echo "キャンセルしました。"
-    exit 0
+  if [ "$FORCE" = false ]; then
+    echo "⚠  注意: このファイルは一度だけ実行してください。"
+    echo "   二重実行するとデータが重複する可能性があります。"
+    echo ""
+    read -p "実行しますか？ (y/N): " CONFIRM
+    if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
+      echo "キャンセルしました。"
+      exit 0
+    fi
+  else
+    echo "⚠  --force: 確認をスキップして実行します"
   fi
 fi
 
-# 方法1: DATABASE_URL が設定されている場合は psql を使用
-if [ -n "$DATABASE_URL" ]; then
-  echo "psql で実行中..."
-  psql "$DATABASE_URL" -f "$SQL_FILE"
+# アクセストークンの取得
+TOKEN=$(get_token)
+
+if [ -z "$TOKEN" ]; then
+  echo "エラー: Supabase アクセストークンが見つかりません。"
   echo ""
-  echo "完了しました。"
-  exit 0
+  echo "以下のいずれかで設定してください:"
+  echo "  1. npx supabase login --token <トークン>"
+  echo "  2. export SUPABASE_ACCESS_TOKEN=<トークン>"
+  echo ""
+  echo "トークンは以下から取得できます:"
+  echo "  https://supabase.com/dashboard/account/tokens"
+  exit 1
 fi
 
-# 方法2: Supabase CLI が利用可能な場合
-if command -v supabase &> /dev/null; then
-  echo "Supabase CLI で実行中..."
-  supabase db push --db-url "$(supabase db url 2>/dev/null || echo '')" < "$SQL_FILE" 2>/dev/null || {
-    # フォールバック: supabase sql コマンド
-    cat "$SQL_FILE" | supabase db execute 2>/dev/null || {
-      echo ""
-      echo "Supabase CLI での実行に失敗しました。"
-      echo "以下を試してください:"
-      echo "  1. supabase login"
-      echo "  2. supabase link --project-ref jfsxywwufwdprqdkyxhr"
-      echo "  3. このスクリプトを再実行"
-      exit 1
-    }
-  }
+# SQLファイルの内容を読み込み
+SQL_CONTENT=$(cat "$SQL_FILE")
+
+# Supabase Management API で SQL を実行
+echo "Supabase API で実行中..."
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+  "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "$(printf '{"query": %s}' "$(echo "$SQL_CONTENT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null || echo "$SQL_CONTENT" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | awk '{printf "%s\\n", $0}' | sed 's/^/"/; s/$/"/')")" \
+  2>&1)
+
+# HTTP ステータスコードとレスポンスを分離
+HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
   echo ""
   echo "完了しました。"
-  exit 0
+  # 結果がある場合は表示
+  if [ -n "$BODY" ] && [ "$BODY" != "[]" ] && [ "$BODY" != "null" ]; then
+    echo "結果: $BODY"
+  fi
+else
+  echo ""
+  echo "エラー (HTTP $HTTP_CODE):"
+  echo "$BODY"
+  exit 1
 fi
-
-# 方法3: 手動実行のガイド
-echo "自動実行ツールが見つかりません。"
-echo ""
-echo "以下のいずれかの方法でSQLを実行してください:"
-echo ""
-echo "【方法A】Supabase ダッシュボード (最も簡単)"
-echo "  1. https://supabase.com/dashboard にアクセス"
-echo "  2. プロジェクトを選択"
-echo "  3. 左メニュー「SQL Editor」を開く"
-echo "  4. 「New query」をクリック"
-echo "  5. SQLファイルの内容を貼り付けて「Run」"
-echo ""
-echo "【方法B】Supabase CLI をインストール"
-echo "  npm install -g supabase"
-echo "  supabase login"
-echo "  supabase link --project-ref jfsxywwufwdprqdkyxhr"
-echo "  bash scripts/run-sql.sh $(basename "$SQL_FILE")"
-echo ""
-echo "【方法C】psql で直接接続"
-echo "  export DATABASE_URL=\"postgresql://postgres:パスワード@db.jfsxywwufwdprqdkyxhr.supabase.co:5432/postgres\""
-echo "  bash scripts/run-sql.sh $(basename "$SQL_FILE")"
