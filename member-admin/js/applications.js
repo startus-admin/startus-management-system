@@ -215,6 +215,8 @@ function buildChecklistProgressBadge(app) {
 let allApplications = [];
 let filteredApplications = [];
 
+export function getFilteredApplications() { return filteredApplications; }
+
 let appFilters = {
   types: [],
   status: [],
