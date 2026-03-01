@@ -6,7 +6,7 @@ import {
   initStatusFilter, initTypeFilter, resetMemberFilters
 } from './members.js';
 import { openImportModal, removeImportRow, executeImport } from './import.js';
-import { exportCSV } from './export.js';
+import { exportCSV, exportApplicationsCSV, exportTrialsCSV } from './export.js';
 import { openFeeEditForm, onFiscalYearChange, cancelFeeEdit } from './fees.js';
 import { initTabs, switchTab } from './views.js';
 import { renderFeeOverview, onFeeOverviewYearChange } from './fee-overview.js';
