@@ -211,6 +211,9 @@ function storeEventsInCache(items, start, end) {
       allFetchedEvents.push(item);
     }
   }
+
+  // sessionStorageに永続化
+  saveToSessionStorage();
 }
 
 // --- Data Fetching: GAS API ---
