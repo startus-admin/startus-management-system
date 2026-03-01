@@ -2872,6 +2872,10 @@ body {
   padding-bottom: 4px;
 }
 
+.sch-detail-app-wrapper {
+  margin-bottom: 2px;
+}
+
 .sch-detail-app-row {
   display: flex;
   align-items: center;
@@ -2884,6 +2888,71 @@ body {
 
 .sch-detail-app-row:hover {
   background: var(--gray-50);
+}
+
+.sch-detail-app-row-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sch-detail-app-chevron {
+  transition: transform 0.2s;
+}
+
+.sch-summary-card {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 2px 8px 8px 8px;
+  animation: sch-slide-down 0.15s ease-out;
+}
+
+@keyframes sch-slide-down {
+  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+  to { opacity: 1; max-height: 300px; }
+}
+
+.sch-summary-field {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.sch-summary-label {
+  color: var(--gray-500);
+  white-space: nowrap;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.sch-summary-value {
+  color: var(--gray-800);
+  word-break: break-all;
+}
+
+.sch-summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: white;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sch-summary-btn:hover {
+  background: var(--primary);
+  color: white;
 }
 
 .sch-detail-memo-text {
