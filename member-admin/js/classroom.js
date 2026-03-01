@@ -4,6 +4,16 @@ import { showToast, openModal, closeModal, setModalWide } from './app.js';
 
 // --- キャッシュ ---
 let classroomCache = [];
+let filteredClassrooms = [];
+
+// --- フィルター状態 ---
+let classroomFilters = {
+  category: [],
+  day: [],
+  status: ['active'],
+  query: '',
+};
+let classroomSortKey = 'display_order';
 
 // --- 定数 ---
 const DAYS_OF_WEEK = ['月', '火', '水', '木', '金', '土', '日'];
@@ -78,14 +88,154 @@ function cellText(val) {
 
 export async function renderClassroomScreen() {
   await loadClassrooms();
+  applyClassroomFilters();
   renderClassroomView();
+}
+
+function applyClassroomFilters() {
+  let result = [...classroomCache];
+
+  // 検索
+  if (classroomFilters.query) {
+    const q = classroomFilters.query.toLowerCase();
+    result = result.filter(c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.main_coach || '').toLowerCase().includes(q)
+    );
+  }
+
+  // カテゴリフィルタ
+  if (classroomFilters.category.length > 0) {
+    result = result.filter(c => classroomFilters.category.includes(c.category));
+  }
+
+  // 曜日フィルタ
+  if (classroomFilters.day.length > 0) {
+    result = result.filter(c => {
+      const days = c.day_of_week || [];
+      return classroomFilters.day.some(d => days.includes(d));
+    });
+  }
+
+  // 状態フィルタ
+  if (classroomFilters.status.length > 0) {
+    result = result.filter(c => {
+      if (classroomFilters.status.includes('active') && c.is_active) return true;
+      if (classroomFilters.status.includes('inactive') && !c.is_active) return true;
+      return false;
+    });
+  }
+
+  // ソート
+  result.sort((a, b) => {
+    switch (classroomSortKey) {
+      case 'name': return (a.name || '').localeCompare(b.name || '', 'ja');
+      case 'category': return (a.category || '').localeCompare(b.category || '', 'ja') || (a.display_order || 0) - (b.display_order || 0);
+      case 'display_order':
+      default: return (a.display_order || 0) - (b.display_order || 0);
+    }
+  });
+
+  filteredClassrooms = result;
+  updateClassroomFilterBadge();
+}
+
+function updateClassroomFilterBadge() {
+  const defaultStatus = classroomFilters.status.length === 1 && classroomFilters.status[0] === 'active';
+  const count = classroomFilters.category.length + classroomFilters.day.length + (defaultStatus ? 0 : classroomFilters.status.length);
+  const btn = document.getElementById('classroom-filter-toggle');
+  if (!btn) return;
+  const existing = btn.querySelector('.filter-badge');
+  if (existing) existing.remove();
+  btn.classList.toggle('has-filters', count > 0);
+  if (count > 0) {
+    btn.insertAdjacentHTML('beforeend', `<span class="filter-badge">${count}</span>`);
+  }
+}
+
+export function toggleClassroomFilterPanel() {
+  const panel = document.getElementById('classroom-filter-panel');
+  if (panel) panel.classList.toggle('open');
+}
+
+export function resetClassroomFilters() {
+  classroomFilters = { category: [], day: [], status: ['active'], query: '' };
+  document.querySelectorAll('#classroom-filter-panel input[type="checkbox"]').forEach(cb => {
+    cb.checked = cb.value === 'active';
+  });
+  const searchInput = document.getElementById('classroom-search-input');
+  if (searchInput) searchInput.value = '';
+  applyClassroomFilters();
+  renderClassroomView();
+}
+
+export function initClassroomFilters() {
+  // 検索
+  const searchInput = document.getElementById('classroom-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      classroomFilters.query = searchInput.value.trim();
+      applyClassroomFilters();
+      renderClassroomView();
+    });
+  }
+
+  // ソート
+  const sortSel = document.getElementById('classroom-sort-select');
+  if (sortSel) {
+    sortSel.value = classroomSortKey;
+    sortSel.addEventListener('change', () => {
+      classroomSortKey = sortSel.value;
+      applyClassroomFilters();
+      renderClassroomView();
+    });
+  }
+
+  // カテゴリフィルタ動的生成
+  const catContainer = document.getElementById('classroom-category-filter');
+  if (catContainer) {
+    catContainer.innerHTML = CATEGORIES.map(cat =>
+      `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(cat)}">${escapeHtml(cat)}</label>`
+    ).join('');
+    catContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        classroomFilters.category = Array.from(catContainer.querySelectorAll('input:checked')).map(c => c.value);
+        applyClassroomFilters();
+        renderClassroomView();
+      });
+    });
+  }
+
+  // 曜日フィルタ
+  const dayContainer = document.getElementById('classroom-day-filter');
+  if (dayContainer) {
+    dayContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        classroomFilters.day = Array.from(dayContainer.querySelectorAll('input:checked')).map(c => c.value);
+        applyClassroomFilters();
+        renderClassroomView();
+      });
+    });
+  }
+
+  // 状態フィルタ
+  const statusContainer = document.getElementById('classroom-status-filter');
+  if (statusContainer) {
+    statusContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        classroomFilters.status = Array.from(statusContainer.querySelectorAll('input:checked')).map(c => c.value);
+        applyClassroomFilters();
+        renderClassroomView();
+      });
+    });
+  }
 }
 
 function renderClassroomView() {
   const wrap = document.getElementById('classroom-table-wrap');
   if (!wrap) return;
 
-  const classrooms = getClassrooms();
+  const classrooms = filteredClassrooms;
 
   if (classrooms.length === 0) {
     wrap.innerHTML = `
@@ -93,12 +243,22 @@ function renderClassroomView() {
         <span class="material-icons empty-icon">meeting_room</span>
         <p>教室が登録されていません</p>
       </div>`;
+    // 件数表示を更新（0件でも表示）
+    const countEl = document.getElementById('classroom-count');
+    if (countEl) {
+      const total = classroomCache.length;
+      countEl.textContent = total === 0 ? '0教室' : `${total}教室中 0教室表示`;
+    }
     return;
   }
 
   // 件数表示を更新
   const countEl = document.getElementById('classroom-count');
-  if (countEl) countEl.textContent = `${classrooms.length}教室`;
+  if (countEl) {
+    const total = classroomCache.length;
+    const shown = classrooms.length;
+    countEl.textContent = total === shown ? `${shown}教室` : `${total}教室中 ${shown}教室表示`;
+  }
 
   const GRID_HEADER = `
     <div class="cr-grid-header">

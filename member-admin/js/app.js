@@ -17,7 +17,8 @@ import { openGlobalHistory, openMemberHistory } from './history.js';
 import { openEmailListModal, copyEmailList } from './email-list.js';
 import {
   loadClassrooms, renderClassroomScreen, openClassroomAddForm,
-  openClassroomEditForm, confirmDeleteClassroom, deleteClassroom
+  openClassroomEditForm, confirmDeleteClassroom, deleteClassroom,
+  initClassroomFilters, toggleClassroomFilterPanel, resetClassroomFilters
 } from './classroom.js';
 import {
   renderApplicationList, showApplicationDetail, updateApplicationStatus,
@@ -210,6 +211,9 @@ async function showApp(email) {
   initStaffFilters();
   initStaffSort();
 
+  // 教室マスタフィルタ初期化
+  initClassroomFilters();
+
   // データ読み込み
   await loadClassrooms();
   await loadStaff();
@@ -274,6 +278,8 @@ window.memberApp = {
   openClassroomEditForm,
   confirmDeleteClassroom,
   deleteClassroom,
+  toggleClassroomFilterPanel,
+  resetClassroomFilters,
   renderApplicationList,
   showApplicationDetail,
   updateApplicationStatus,

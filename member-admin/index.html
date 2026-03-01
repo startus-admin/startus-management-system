@@ -425,10 +425,63 @@
       <div class="section-header">
         <h2>教室マスタ</h2>
         <div class="section-actions">
-          <span class="member-count" id="classroom-count"></span>
           <button class="btn btn-primary" onclick="window.memberApp.openClassroomAddForm()">
             <span class="material-icons">add</span><span class="btn-text-mobile-hide">教室を追加</span>
           </button>
+        </div>
+      </div>
+
+      <!-- 検索バー -->
+      <div class="search-bar">
+        <span class="material-icons">search</span>
+        <input type="text" id="classroom-search-input" placeholder="教室名・コーチ名で検索...">
+      </div>
+
+      <!-- ツールバー -->
+      <div class="toolbar">
+        <select id="classroom-sort-select" class="sort-select">
+          <option value="display_order">表示順</option>
+          <option value="name">名前順</option>
+          <option value="category">カテゴリ順</option>
+        </select>
+        <button class="btn-filter-toggle" id="classroom-filter-toggle" onclick="window.memberApp.toggleClassroomFilterPanel()">
+          <span class="material-icons" style="font-size:16px">filter_list</span>
+          絞込
+        </button>
+        <span class="member-count" id="classroom-count">0教室</span>
+
+        <!-- フィルタパネル -->
+        <div class="toolbar-filter-panel" id="classroom-filter-panel">
+          <div class="filter-group">
+            <div class="filter-group-label">カテゴリ</div>
+            <div class="filter-checkboxes" id="classroom-category-filter">
+              <!-- 動的生成 -->
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">曜日</div>
+            <div class="filter-checkboxes" id="classroom-day-filter">
+              <label class="filter-pill"><input type="checkbox" value="月">月</label>
+              <label class="filter-pill"><input type="checkbox" value="火">火</label>
+              <label class="filter-pill"><input type="checkbox" value="水">水</label>
+              <label class="filter-pill"><input type="checkbox" value="木">木</label>
+              <label class="filter-pill"><input type="checkbox" value="金">金</label>
+              <label class="filter-pill"><input type="checkbox" value="土">土</label>
+              <label class="filter-pill"><input type="checkbox" value="日">日</label>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-group-label">状態</div>
+            <div class="filter-checkboxes" id="classroom-status-filter">
+              <label class="filter-pill"><input type="checkbox" value="active" checked>有効</label>
+              <label class="filter-pill"><input type="checkbox" value="inactive">無効</label>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-filter-reset" onclick="window.memberApp.resetClassroomFilters()">
+              <span class="material-icons" style="font-size:14px">refresh</span>リセット
+            </button>
+          </div>
         </div>
       </div>
 

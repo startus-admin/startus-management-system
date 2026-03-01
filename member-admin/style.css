@@ -414,11 +414,19 @@ body {
 
 /* ===== Filter Panel ===== */
 .toolbar-filter-panel {
-  display: none;
   width: 100%;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, padding-top 0.25s ease, margin-top 0.25s ease, border-top-color 0.25s ease;
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 1px solid transparent;
+}
+.toolbar-filter-panel.open {
+  max-height: 500px;
   padding-top: 12px;
-  border-top: 1px solid var(--gray-200);
   margin-top: 4px;
+  border-top-color: var(--gray-200);
 }
 
 .filter-group {
