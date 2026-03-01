@@ -33,10 +33,6 @@ export async function loadMembers() {
   } else {
     allMembers = data || [];
   }
-  unpaidMemberIds = null;
-  if (unpaidFilterActive) {
-    await loadUnpaidMemberIds();
-  }
   applyFiltersAndRender();
 }
 
