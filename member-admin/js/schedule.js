@@ -971,6 +971,10 @@ export function refreshSchedule() {
   cachedAppData = null;
   appDataRange = null;
   classroomIndex = null;
+  // sessionStorageもクリア
+  sessionStorage.removeItem(SS_EVENTS_KEY);
+  sessionStorage.removeItem(SS_DATES_KEY);
+  sessionStorage.removeItem(SS_TS_KEY);
   renderSchedule();
 }
 
