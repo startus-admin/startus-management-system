@@ -10,9 +10,18 @@ import { getClassrooms } from './classroom.js';
 
 let currentDate = new Date();
 let currentView = 'week'; // 'day' | 'week' | 'month' | 'year'
-let cachedScheduleEvents = {}; // { cacheKey: items[] }
+
+// 日付ベース統合キャッシュ
+let eventsByDate = {};         // { "2026-03-01": [event, ...], ... }
+let fetchedDateSet = new Set(); // 取得済み日付のセット
+let allFetchedEvents = [];     // flat array of all fetched events (for detail modal)
+
+// アプリデータキャッシュ（範囲管理付き）
 let cachedAppData = null;      // { trials, joins, withdrawals }
-let allFetchedEvents = [];     // flat array of all fetched events
+let appDataRange = null;       // { start: "YYYY-MM-DD", end: "YYYY-MM-DD" }
+
+// 教室インデックスキャッシュ
+let classroomIndex = null;     // { calendarTag: classroom }
 
 // --- Constants ---
 
@@ -54,14 +63,118 @@ function parseEventDescription(desc) {
   return { taikenOk, furikaeOk, capacity, memo: memoLines.join('\n') };
 }
 
+// --- 教室インデックス ---
+
+function getClassroomIndex() {
+  if (!classroomIndex) {
+    classroomIndex = {};
+    for (const c of getClassrooms()) {
+      if (c.calendar_tag) classroomIndex[c.calendar_tag] = c;
+    }
+  }
+  return classroomIndex;
+}
+
+function invalidateClassroomIndex() {
+  classroomIndex = null;
+}
+
+// --- 日付ヘルパー ---
+
+function toISODate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** 指定範囲内の全日付文字列を生成 */
+function getDatesBetween(start, end) {
+  const dates = [];
+  const d = new Date(start);
+  d.setHours(0, 0, 0, 0);
+  const endDate = new Date(end);
+  endDate.setHours(0, 0, 0, 0);
+  while (d <= endDate) {
+    dates.push(toISODate(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+/** 指定範囲の全日付がキャッシュ済みか */
+function isRangeCached(start, end) {
+  const dates = getDatesBetween(start, end);
+  return dates.every(d => fetchedDateSet.has(d));
+}
+
+/** キャッシュから指定範囲のイベントを取得 */
+function getEventsFromCache(start, end) {
+  const dates = getDatesBetween(start, end);
+  const events = [];
+  for (const d of dates) {
+    if (eventsByDate[d]) {
+      events.push(...eventsByDate[d]);
+    }
+  }
+  return events;
+}
+
+/** イベントを日付マップに格納 */
+function storeEventsInCache(items, start, end) {
+  // 範囲内の全日付をマーク（イベントなしの日も取得済みとする）
+  const dates = getDatesBetween(start, end);
+  for (const d of dates) {
+    if (!eventsByDate[d]) eventsByDate[d] = [];
+    fetchedDateSet.add(d);
+  }
+  // イベントを日付別に振り分け
+  for (const item of items) {
+    const dateKey = item.start ? toISODate(new Date(item.start)) : null;
+    if (dateKey && eventsByDate[dateKey] !== undefined) {
+      // 重複チェック
+      if (!eventsByDate[dateKey].some(e => e.id === item.id)) {
+        eventsByDate[dateKey].push(item);
+      }
+    } else if (dateKey) {
+      eventsByDate[dateKey] = [item];
+      fetchedDateSet.add(dateKey);
+    }
+  }
+  // allFetchedEvents を更新（モーダル用）
+  const allIds = new Set(allFetchedEvents.map(e => e.id));
+  for (const item of items) {
+    if (!allIds.has(item.id)) {
+      allFetchedEvents.push(item);
+    }
+  }
+}
+
 // --- Data Fetching: GAS API ---
 
 async function fetchScheduleEvents(startDate, endDate) {
   const startStr = toISODate(startDate);
   const endStr = toISODate(endDate);
-  const cacheKey = `${startStr}_${endStr}`;
 
-  if (cachedScheduleEvents[cacheKey]) return cachedScheduleEvents[cacheKey];
+  // 既にキャッシュ済みならローカルから返す
+  if (isRangeCached(startDate, endDate)) {
+    return getEventsFromCache(startDate, endDate);
+  }
 
   const url = `${SCHEDULE_API_URL}?start_date=${startStr}&end_date=${endStr}`;
 
@@ -70,21 +183,19 @@ async function fetchScheduleEvents(startDate, endDate) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     const items = data.items || [];
-    cachedScheduleEvents[cacheKey] = items;
-    allFetchedEvents = items;
-    return items;
+    storeEventsInCache(items, startDate, endDate);
+    return getEventsFromCache(startDate, endDate);
   } catch (fetchErr) {
     // Fallback to JSONP
     try {
       const data = await fetchViaJsonp(url);
       const items = data.items || [];
-      cachedScheduleEvents[cacheKey] = items;
-      allFetchedEvents = items;
-      return items;
+      storeEventsInCache(items, startDate, endDate);
+      return getEventsFromCache(startDate, endDate);
     } catch (jsonpErr) {
       console.error('Schedule API error:', fetchErr, jsonpErr);
       showToast('スケジュールの読み込みに失敗しました', 'error');
-      return [];
+      return getEventsFromCache(startDate, endDate);
     }
   }
 }
@@ -125,30 +236,38 @@ function fetchViaJsonp(url) {
 // --- Data Fetching: Application Counts ---
 
 async function fetchApplicationCounts(startDate, endDate) {
-  if (cachedAppData) return cachedAppData;
-
   const startStr = toISODate(startDate);
   const endStr = toISODate(endDate);
+
+  // 既にカバーされている範囲ならキャッシュを返す
+  if (cachedAppData && appDataRange &&
+      appDataRange.start <= startStr && appDataRange.end >= endStr) {
+    return cachedAppData;
+  }
+
+  // 範囲を拡大（既存キャッシュとマージ）
+  const fetchStart = appDataRange ? (startStr < appDataRange.start ? startStr : appDataRange.start) : startStr;
+  const fetchEnd = appDataRange ? (endStr > appDataRange.end ? endStr : appDataRange.end) : endStr;
 
   const [trialsRes, joinsRes, withdrawalsRes] = await Promise.all([
     supabase
       .from('applications')
       .select('id, type, status, form_data, created_at')
       .eq('type', 'trial')
-      .gte('created_at', `${startStr}T00:00:00`)
-      .lte('created_at', `${endStr}T23:59:59`),
+      .gte('created_at', `${fetchStart}T00:00:00`)
+      .lte('created_at', `${fetchEnd}T23:59:59`),
     supabase
       .from('applications')
       .select('id, type, status, form_data, created_at')
       .eq('type', 'join')
-      .gte('created_at', `${startStr}T00:00:00`)
-      .lte('created_at', `${endStr}T23:59:59`),
+      .gte('created_at', `${fetchStart}T00:00:00`)
+      .lte('created_at', `${fetchEnd}T23:59:59`),
     supabase
       .from('applications')
       .select('id, type, status, form_data, created_at')
       .eq('type', 'withdrawal')
-      .gte('created_at', `${startStr}T00:00:00`)
-      .lte('created_at', `${endStr}T23:59:59`),
+      .gte('created_at', `${fetchStart}T00:00:00`)
+      .lte('created_at', `${fetchEnd}T23:59:59`),
   ]);
 
   cachedAppData = {
@@ -156,6 +275,7 @@ async function fetchApplicationCounts(startDate, endDate) {
     joins: joinsRes.data || [],
     withdrawals: withdrawalsRes.data || [],
   };
+  appDataRange = { start: fetchStart, end: fetchEnd };
 
   return cachedAppData;
 }
@@ -163,8 +283,8 @@ async function fetchApplicationCounts(startDate, endDate) {
 // --- Enrichment ---
 
 function enrichEvent(event) {
-  const classrooms = getClassrooms();
-  const classroom = classrooms.find(c => c.calendar_tag === event.class) || null;
+  const idx = getClassroomIndex();
+  const classroom = idx[event.class] || null;
   const parsed = parseEventDescription(event.description);
 
   return {
@@ -240,13 +360,6 @@ export async function renderSchedule() {
   const container = document.getElementById('schedule-content');
   if (!container) return;
 
-  // Show loading
-  container.innerHTML = `
-    <div class="sch-loading">
-      <span class="material-icons cal-spinner" style="font-size:32px;color:var(--gray-300)">sync</span>
-      <p>スケジュールを読み込み中...</p>
-    </div>`;
-
   const { start, end } = getDateRange(currentDate, currentView);
   // Extend range a bit for month boundary events
   const fetchStart = new Date(start);
@@ -254,41 +367,116 @@ export async function renderSchedule() {
   const fetchEnd = new Date(end);
   fetchEnd.setDate(fetchEnd.getDate() + 7);
 
-  try {
-    const [events, appData] = await Promise.all([
-      fetchScheduleEvents(fetchStart, fetchEnd),
-      fetchApplicationCounts(fetchStart, fetchEnd),
-    ]);
+  const hasCachedData = isRangeCached(fetchStart, fetchEnd);
 
+  if (hasCachedData) {
+    // キャッシュヒット: ローディング表示なしで即座にレンダリング
+    const events = getEventsFromCache(fetchStart, fetchEnd);
+    const appData = cachedAppData || null;
+    renderView(container, events, appData);
+  } else {
+    // キャッシュミス: ツールバーを先に表示し、コンテンツ部分のみローディング
     const toolbar = renderScheduleToolbar();
-    let viewHtml = '';
-
-    switch (currentView) {
-      case 'day':
-        viewHtml = renderDayView(events, appData);
-        break;
-      case 'week':
-        viewHtml = renderWeekView(events, appData);
-        break;
-      case 'month':
-        viewHtml = renderMonthView(events, appData);
-        break;
-      case 'year':
-        viewHtml = renderYearView(events, appData);
-        break;
-    }
-
-    container.innerHTML = toolbar + viewHtml;
-  } catch (err) {
-    console.error('Schedule render error:', err);
-    container.innerHTML = `
-      <div class="sch-loading">
-        <span class="material-icons" style="font-size:48px;color:var(--gray-300)">error_outline</span>
-        <p>スケジュールの読み込みに失敗しました</p>
-        <button class="btn btn-primary" onclick="window.memberApp.refreshSchedule()" style="margin-top:12px">
-          <span class="material-icons">refresh</span>再試行
-        </button>
+    container.innerHTML = toolbar + `
+      <div id="schedule-view-content">
+        <div class="sch-loading">
+          <span class="material-icons cal-spinner" style="font-size:32px;color:var(--gray-300)">sync</span>
+          <p>スケジュールを読み込み中...</p>
+        </div>
       </div>`;
+
+    try {
+      const [events, appData] = await Promise.all([
+        fetchScheduleEvents(fetchStart, fetchEnd),
+        fetchApplicationCounts(fetchStart, fetchEnd),
+      ]);
+
+      renderView(container, events, appData);
+    } catch (err) {
+      console.error('Schedule render error:', err);
+      const viewContent = document.getElementById('schedule-view-content');
+      if (viewContent) {
+        viewContent.innerHTML = `
+          <div class="sch-loading">
+            <span class="material-icons" style="font-size:48px;color:var(--gray-300)">error_outline</span>
+            <p>スケジュールの読み込みに失敗しました</p>
+            <button class="btn btn-primary" onclick="window.memberApp.refreshSchedule()" style="margin-top:12px">
+              <span class="material-icons">refresh</span>再試行
+            </button>
+          </div>`;
+      }
+    }
+  }
+
+  // 隣接期間をバックグラウンドでプリフェッチ
+  prefetchAdjacentRange(currentDate, currentView);
+}
+
+/** ビューをレンダリング（キャッシュ済みでもフェッチ後でも共通） */
+function renderView(container, events, appData) {
+  const toolbar = renderScheduleToolbar();
+  let viewHtml = '';
+
+  switch (currentView) {
+    case 'day':
+      viewHtml = renderDayView(events, appData);
+      break;
+    case 'week':
+      viewHtml = renderWeekView(events, appData);
+      break;
+    case 'month':
+      viewHtml = renderMonthView(events, appData);
+      break;
+    case 'year':
+      viewHtml = renderYearView(events);
+      break;
+  }
+
+  container.innerHTML = toolbar + `<div id="schedule-view-content">${viewHtml}</div>`;
+}
+
+// --- プリフェッチ ---
+
+function prefetchAdjacentRange(date, view) {
+  const ranges = [];
+
+  switch (view) {
+    case 'day': {
+      const prev = new Date(date);
+      prev.setDate(prev.getDate() - 1);
+      const next = new Date(date);
+      next.setDate(next.getDate() + 1);
+      ranges.push({ start: prev, end: prev }, { start: next, end: next });
+      break;
+    }
+    case 'week': {
+      const prevWeekStart = new Date(getWeekStart(date));
+      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+      const prevWeekEnd = new Date(prevWeekStart);
+      prevWeekEnd.setDate(prevWeekEnd.getDate() + 6);
+      const nextWeekStart = new Date(getWeekStart(date));
+      nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+      const nextWeekEnd = new Date(nextWeekStart);
+      nextWeekEnd.setDate(nextWeekEnd.getDate() + 6);
+      ranges.push({ start: prevWeekStart, end: prevWeekEnd }, { start: nextWeekStart, end: nextWeekEnd });
+      break;
+    }
+    case 'month': {
+      const prevMonth = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(date.getFullYear(), date.getMonth(), 0);
+      const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      const nextMonthEnd = new Date(date.getFullYear(), date.getMonth() + 2, 0);
+      ranges.push({ start: prevMonth, end: prevMonthEnd }, { start: nextMonth, end: nextMonthEnd });
+      break;
+    }
+    // year: プリフェッチ不要（範囲が広すぎる）
+  }
+
+  for (const range of ranges) {
+    if (!isRangeCached(range.start, range.end)) {
+      // fire-and-forget: バックグラウンドでフェッチ
+      fetchScheduleEvents(range.start, range.end).catch(() => {});
+    }
   }
 }
 
@@ -664,9 +852,12 @@ export function goToScheduleToday() {
 }
 
 export function refreshSchedule() {
-  cachedScheduleEvents = {};
-  cachedAppData = null;
+  eventsByDate = {};
+  fetchedDateSet.clear();
   allFetchedEvents = [];
+  cachedAppData = null;
+  appDataRange = null;
+  classroomIndex = null;
   renderSchedule();
 }
 
@@ -683,28 +874,6 @@ export function navigateScheduleToDate(dateStr, view) {
 }
 
 // --- Helpers ---
-
-function toISODate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function isSameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-}
-
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = (day + 6) % 7; // Monday = 0
-  d.setDate(d.getDate() - diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 function formatTimeRange(start, end) {
   return `${formatTime(start)}〜${formatTime(end)}`;
