@@ -942,6 +942,26 @@ export function showScheduleEventDetail(eventId) {
   setModalWide(false);
 }
 
+// --- 事前フェッチ（アプリ起動時用） ---
+
+/** アプリ起動時にバックグラウンドで今週のスケジュールを先読み */
+export function prefetchSchedule() {
+  const now = new Date();
+  const weekStart = getWeekStart(now);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+
+  // ±7日で余裕をもってフェッチ
+  const fetchStart = new Date(weekStart);
+  fetchStart.setDate(fetchStart.getDate() - 7);
+  const fetchEnd = new Date(weekEnd);
+  fetchEnd.setDate(fetchEnd.getDate() + 7);
+
+  if (!isRangeCached(fetchStart, fetchEnd)) {
+    fetchScheduleEvents(fetchStart, fetchEnd).catch(() => {});
+  }
+}
+
 // --- Navigation ---
 
 export function navigateSchedule(offset) {
