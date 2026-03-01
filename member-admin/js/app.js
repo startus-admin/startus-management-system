@@ -131,6 +131,32 @@ function toggleFilterPanel() {
   if (panel) panel.classList.toggle('open');
 }
 
+// --- 検索バートグル ---
+
+const SEARCH_BAR_MAP = {
+  member: { barId: 'member-search-bar', inputId: 'search-input' },
+  app: { barId: 'app-search-bar', inputId: 'app-search-input' },
+  trial: { barId: 'trial-search-bar', inputId: 'trial-search-input' },
+  staff: { barId: 'staff-search-bar', inputId: 'staff-search-input' },
+  classroom: { barId: 'classroom-search-bar', inputId: 'classroom-search-input' },
+};
+
+function toggleSearchBar(key) {
+  const cfg = SEARCH_BAR_MAP[key];
+  if (!cfg) return;
+  const bar = document.getElementById(cfg.barId);
+  if (!bar) return;
+  const isOpen = bar.classList.toggle('open');
+  // ボタンのactive状態
+  const btn = bar.previousElementSibling?.querySelector?.(`.btn-search-toggle`) ||
+    document.querySelector(`[onclick*="toggleSearchBar('${key}')"]`);
+  if (btn) btn.classList.toggle('active', isOpen);
+  if (isOpen) {
+    const input = document.getElementById(cfg.inputId);
+    if (input) input.focus();
+  }
+}
+
 // --- 初期化 ---
 
 async function init() {
