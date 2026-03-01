@@ -959,9 +959,7 @@ function renderAppListOnly() {
 
 export function toggleAppFilterPanel() {
   const panel = document.getElementById('app-filter-panel');
-  if (panel) {
-    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-  }
+  if (panel) panel.classList.toggle('open');
 }
 
 // --- ユーティリティ ---
