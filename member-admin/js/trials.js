@@ -95,6 +95,8 @@ let allTrials = [];
 let filteredTrials = [];
 let joinApplications = [];
 
+export function getFilteredTrials() { return filteredTrials; }
+
 let trialFilters = {
   status: [],
   classes: [],
