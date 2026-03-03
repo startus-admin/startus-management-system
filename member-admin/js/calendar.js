@@ -188,7 +188,18 @@ export async function renderCalendar() {
 }
 
 export function authorizeCalendar() {
-  requestCalendarAccess();
+  requestCalendarAccess(true);
+}
+
+export function switchCalendarAccount() {
+  accessToken = null;
+  calendarAccountEmail = null;
+  cachedEvents = {};
+  // Revoke current token to force account picker
+  if (window.google?.accounts?.oauth2) {
+    window.google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  requestCalendarAccess(true);
 }
 
 export function navigateCalendarDay(offset) {
