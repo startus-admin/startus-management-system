@@ -75,9 +75,12 @@ function categoryHtml(cat) {
   return `<span class="cr-cat-badge" style="background:${s.bg};color:${s.color}">${escapeHtml(cat)}</span>`;
 }
 
-function feeHtml(fee) {
-  if (fee == null) return '';
-  return `<span class="cr-fee-val">¥${fee.toLocaleString()}</span>`;
+function feeHtml(fee, fee2) {
+  if (fee == null && fee2 == null) return '';
+  const parts = [];
+  if (fee != null) parts.push(`¥${fee.toLocaleString()}`);
+  if (fee2 != null) parts.push(`¥${fee2.toLocaleString()}`);
+  return `<span class="cr-fee-val">${parts.join(' / ')}</span>`;
 }
 
 function cellText(val) {
