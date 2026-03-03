@@ -101,6 +101,7 @@ export async function renderCalendar() {
         <span class="material-icons" style="font-size:48px;color:var(--gray-300)">calendar_month</span>
         <h3>カレンダーへのアクセス許可が必要です</h3>
         <p>Googleカレンダーの予定を表示するには、アクセスを許可してください。</p>
+        <p style="font-size:13px;color:var(--gray-400)">※ スタッフカレンダーにアクセスできる組織アカウントでログインしてください</p>
         <button class="btn btn-primary" onclick="window.memberApp.authorizeCalendar()" style="margin-top:16px">
           <span class="material-icons">login</span>カレンダーへのアクセスを許可
         </button>
