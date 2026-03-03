@@ -369,9 +369,9 @@ function openClassroomForm(classroom) {
           <div class="form-group">
             <label>時間帯</label>
             <div style="display:flex;align-items:center;gap:4px">
-              <input type="time" name="time_start" value="${c.time_start || ''}" style="flex:1">
+              <input type="time" name="time_start" value="${time.start}" style="flex:1">
               <span>〜</span>
-              <input type="time" name="time_end" value="${c.time_end || ''}" style="flex:1">
+              <input type="time" name="time_end" value="${time.end}" style="flex:1">
             </div>
           </div>
           <div class="form-group" style="grid-column:1/-1">
