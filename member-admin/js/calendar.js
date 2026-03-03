@@ -62,10 +62,12 @@ function initGIS() {
   return true;
 }
 
-function requestCalendarAccess() {
+function requestCalendarAccess(selectAccount = false) {
   if (!tokenClient) return;
   pendingRender = true;
-  tokenClient.requestAccessToken({ prompt: '' });
+  tokenClient.requestAccessToken({
+    prompt: selectAccount ? 'select_account' : '',
+  });
 }
 
 // --- Public API ---
