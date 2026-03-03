@@ -297,7 +297,7 @@ function renderClassroomView() {
         <div class="grid-cell cr-td-venue">${cellText(c.venue)}</div>
         <div class="grid-cell cr-td-coach">${cellText(c.main_coach)}</div>
         <div class="grid-cell cr-td-capacity">${capacityText}</div>
-        <div class="grid-cell cr-td-fee">${feeHtml(c.fee)}</div>
+        <div class="grid-cell cr-td-fee">${feeHtml(c.fee, c.fee2)}</div>
         <div class="grid-cell cr-td-status">${statusBadge}</div>
         <div class="grid-cell grid-cell-arrow"><span class="material-icons list-item-arrow">chevron_right</span></div>
       </div>`;
