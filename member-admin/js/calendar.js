@@ -23,7 +23,10 @@ function buildEmbedUrl() {
   params.set('mode', currentMode);
   params.set('ctz', 'Asia/Tokyo');
   params.set('showTitle', '0');
+  params.set('showNav', '1');
+  params.set('showDate', '1');
   params.set('showPrint', '0');
+  params.set('showTabs', '0');
   params.set('showCalendars', '0');
   params.set('showTz', '0');
   params.set('wkst', '2'); // Monday start
