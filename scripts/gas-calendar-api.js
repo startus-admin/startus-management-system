@@ -4,13 +4,18 @@
  * スタッフのGoogleカレンダーからイベントを取得するAPIエンドポイント。
  * startus@startus-kanazawa.org アカウントでデプロイすること。
  *
+ * ★ 事前準備:
+ *   GASエディタ左側「サービス」→「Google Calendar API」を追加すること
+ *
  * デプロイ手順:
  * 1. https://script.google.com で新規プロジェクト作成
  * 2. このコードを貼り付け
- * 3. デプロイ → 新しいデプロイ → ウェブアプリ
+ * 3. 左側「サービス」→「Google Calendar API」を追加
+ * 4. testDoGet を実行して権限を承認
+ * 5. デプロイ → 新しいデプロイ → ウェブアプリ
  *    - 実行: 自分 (startus@startus-kanazawa.org)
  *    - アクセス: 全員
- * 4. 生成された URL をアプリ設定の「カレンダーAPI URL」に登録
+ * 6. 生成された URL をアプリ設定の「カレンダーAPI URL」に登録
  *
  * リクエスト例:
  *   ?date=2026-03-03&emails=imoto@startus-kanazawa.org,matsui@startus-kanazawa.org
@@ -24,7 +29,6 @@ function doGet(e) {
 
   // 日付パラメータ（デフォルト: 今日）
   var dateStr = params.date || Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-  var targetDate = parseDate_(dateStr);
 
   // スタッフメールアドレス（カンマ区切り）
   var emailsStr = params.emails || '';
@@ -34,30 +38,40 @@ function doGet(e) {
     return respond_({ error: 'emails parameter is required' }, params.callback);
   }
 
+  // 当日の開始・終了（JST）
+  var timeMin = dateStr + 'T00:00:00+09:00';
+  var timeMax = dateStr + 'T23:59:59+09:00';
+
   var results = {};
 
   for (var i = 0; i < emails.length; i++) {
     var email = emails[i];
     try {
-      var cal = CalendarApp.getCalendarById(email);
-      if (!cal) {
-        results[email] = { error: 'Calendar not found or no access', events: [] };
-        continue;
-      }
+      // Calendar Advanced Service (Calendar API v3) を使用
+      // 共有されていれば購読不要でアクセス可能
+      var response = Calendar.Events.list(email, {
+        timeMin: timeMin,
+        timeMax: timeMax,
+        singleEvents: true,
+        orderBy: 'startTime',
+        timeZone: 'Asia/Tokyo'
+      });
 
-      var events = cal.getEventsForDay(targetDate);
       var eventList = [];
+      var items = response.items || [];
 
-      for (var j = 0; j < events.length; j++) {
-        var ev = events[j];
+      for (var j = 0; j < items.length; j++) {
+        var ev = items[j];
+        var isAllDay = !!ev.start.date; // 終日イベントは date、時間指定は dateTime
+
         eventList.push({
-          title: ev.getTitle(),
-          start: ev.getStartTime().toISOString(),
-          end: ev.getEndTime().toISOString(),
-          location: ev.getLocation() || '',
-          description: ev.getDescription() || '',
-          isAllDay: ev.isAllDayEvent(),
-          color: ev.getColor() || ''
+          title: ev.summary || '(タイトルなし)',
+          start: isAllDay ? ev.start.date + 'T00:00:00+09:00' : ev.start.dateTime,
+          end: isAllDay ? ev.end.date + 'T00:00:00+09:00' : ev.end.dateTime,
+          location: ev.location || '',
+          description: ev.description || '',
+          isAllDay: isAllDay,
+          color: ev.colorId || ''
         });
       }
 
@@ -67,23 +81,12 @@ function doGet(e) {
     }
   }
 
-  var response = {
+  var responseData = {
     date: dateStr,
     results: results
   };
 
-  return respond_(response, params.callback);
-}
-
-/**
- * 日付文字列をDateオブジェクトに変換（JST）
- */
-function parseDate_(dateStr) {
-  var parts = dateStr.split('-');
-  var year = parseInt(parts[0], 10);
-  var month = parseInt(parts[1], 10) - 1;
-  var day = parseInt(parts[2], 10);
-  return new Date(year, month, day);
+  return respond_(responseData, params.callback);
 }
 
 /**
@@ -106,6 +109,7 @@ function respond_(data, callback) {
 
 /**
  * テスト用: ログにサンプルレスポンスを出力
+ * ★ 初回実行時に権限承認ダイアログが出るので承認すること
  */
 function testDoGet() {
   var result = doGet({
