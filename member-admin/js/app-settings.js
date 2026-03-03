@@ -71,6 +71,10 @@ export function getScheduleApiUrl() {
   return getSetting('schedule_api_url', DEFAULT_SCHEDULE_API_URL);
 }
 
+export function getCalendarApiUrl() {
+  return getSetting('calendar_api_url', DEFAULT_CALENDAR_API_URL);
+}
+
 /**
  * staff テーブルからカレンダー設定を取得する。
  * calendar_color が設定されている在籍スタッフのみ返す。
