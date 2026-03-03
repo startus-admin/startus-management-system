@@ -39,7 +39,7 @@ import {
   saveTrialFollowUp, assignTrial, toggleTrialWorkloadFilter,
   initTrialSort, resetTrialFilters
 } from './trials.js';
-import { renderCalendar, navigateCalendarDay, goToToday, refreshCalendar, authorizeCalendar, switchCalendarAccount, changeCalendarMode, openGoogleCalendar } from './calendar.js';
+import { renderCalendar, navigateCalendarDay, goToCalendarToday, refreshCalendar, openGoogleCalendar, showCalendarEvent, changeCalendarMode } from './calendar.js';
 import {
   renderSchedule, navigateSchedule, goToScheduleToday,
   refreshSchedule, changeScheduleView, showScheduleEventDetail,
