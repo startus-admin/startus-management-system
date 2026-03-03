@@ -2120,7 +2120,7 @@ body {
   gap: 4px;
 }
 
-/* ===== Calendar Tab ===== */
+/* ===== Calendar Tab (Staff Day View) ===== */
 
 .calendar-main-content {
   max-width: 100% !important;
@@ -2193,31 +2193,115 @@ body {
   color: var(--gray-800);
 }
 
-/* Grid wrapper (vertical scroll) */
-.cal-grid-wrapper {
-  max-height: calc(100vh - 180px);
-  overflow-y: auto;
+/* Day View Container */
+.cal-day-container {
+  background: white;
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
-  background: white;
+  overflow: hidden;
 }
 
-/* Grid container */
-.cal-grid-container {
+/* Loading & Error */
+.cal-day-loading,
+.cal-day-error {
   display: flex;
-  min-width: fit-content;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: var(--gray-500);
+  font-size: 0.95rem;
 }
 
-/* Time column (left gutter) */
-.cal-time-column {
+.cal-day-loading .material-icons {
+  font-size: 28px;
+  color: var(--primary-color);
+}
+
+.cal-day-error .material-icons {
+  font-size: 36px;
+  color: var(--warning-color);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+/* Day Header (staff names) */
+.cal-day-header {
+  display: flex;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--gray-50);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.cal-time-gutter-header {
   flex-shrink: 0;
   width: 56px;
   border-right: 1px solid var(--gray-200);
 }
 
-.cal-time-labels {
+.cal-staff-headers {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.cal-staff-header {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--gray-700);
+  border-right: 1px solid var(--gray-200);
+}
+
+.cal-staff-header:last-child {
+  border-right: none;
+}
+
+.cal-staff-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cal-staff-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Day Body (scrollable area) */
+.cal-day-body {
+  display: flex;
+  max-height: calc(100vh - 200px);
+  min-height: 400px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+/* Time Gutter */
+.cal-time-gutter {
+  flex-shrink: 0;
+  width: 56px;
   position: relative;
+  border-right: 1px solid var(--gray-200);
 }
 
 .cal-time-label {
@@ -2233,37 +2317,47 @@ body {
   user-select: none;
 }
 
-/* Staff columns */
-.cal-columns-scroll {
+/* Staff Columns */
+.cal-staff-columns {
   display: flex;
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
-.cal-column {
+.cal-staff-col {
   flex: 1;
-  min-width: 160px;
-  border-right: 1px solid var(--gray-100);
+  min-width: 120px;
+  border-right: 1px solid var(--gray-200);
+  display: flex;
+  flex-direction: column;
 }
 
-.cal-column:last-child {
+.cal-staff-col:last-child {
   border-right: none;
 }
 
-.cal-column-header {
-  text-align: center;
-  padding: 10px 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--gray-700);
-  background: var(--gray-50);
+/* All-day event area */
+.cal-allday-area {
+  padding: 4px;
   border-bottom: 1px solid var(--gray-200);
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.cal-column-body {
+.cal-allday-event {
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column body (timed events) */
+.cal-col-body {
   position: relative;
   overflow: hidden;
 }
@@ -2285,7 +2379,7 @@ body {
   border-radius: var(--radius-xs);
   padding: 4px 6px;
   overflow: hidden;
-  cursor: default;
+  cursor: pointer;
   z-index: 1;
   transition: box-shadow var(--transition-fast);
 }
@@ -2306,63 +2400,39 @@ body {
 
 .cal-event-time {
   font-size: 0.7rem;
-  color: var(--gray-500);
+  color: var(--gray-600);
   line-height: 1.3;
 }
 
 .cal-event-location {
   font-size: 0.68rem;
-  color: var(--gray-400);
+  color: var(--gray-500);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Calendar Embed */
-.cal-embed-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 160px);
-  min-height: 500px;
+/* Current time indicator */
+.cal-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #ef4444;
+  z-index: 4;
+  pointer-events: none;
 }
 
-.cal-embed-iframe {
-  flex: 1;
-  width: 100%;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-lg);
-  background: white;
-}
-
-.cal-embed-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--gray-400);
-}
-.cal-embed-hint .material-icons {
-  font-size: 16px;
-}
-
-.cal-mode-toggle {
-  display: flex;
-  gap: 4px;
-}
-.cal-mode-toggle .btn {
-  padding: 4px 12px;
-  min-width: auto;
-  font-size: 13px;
-}
-.cal-open-gcal-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px !important;
-  font-size: 13px !important;
-  font-weight: 600;
+.cal-now-line::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
 }
 
 /* ===== Schedule Tab (スケジュール) ===== */
