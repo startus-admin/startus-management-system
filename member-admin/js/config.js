@@ -28,11 +28,11 @@ export const APP_NAME = 'STARTUS 会員管理';
 
 // スタッフカレンダー設定（フォールバック）→ 本来は staff テーブルの email + calendar_color で管理
 export const STAFF_CALENDARS = [
-  { id: 'imoto@startus-kanazawa.org',    name: '井元', color: '#4285F4' },
-  { id: 'matsui@startus-kanazawa.org',   name: '松井', color: '#EA4335' },
-  { id: 'matsukura@startus-kanazawa.org', name: '松倉', color: '#FBBC05' },
-  { id: 'takei@startus-kanazawa.org',    name: '竹井', color: '#34A853' },
-  { id: 'sakurai@startus-kanazawa.org',  name: '櫻井', color: '#8B5CF6' },
+  { id: 'hiroshiinomoto@startus-kanazawa.org', name: '井元', color: '#4285F4' },
+  { id: 'hisashimatsui@startus-kanazawa.org',  name: '松井', color: '#EA4335' },
+  { id: 'junkomatsukura@startus-kanazawa.org',  name: '松倉', color: '#FBBC05' },
+  { id: 'sayokotakei@startus-kanazawa.org',    name: '竹井', color: '#34A853' },
+  { id: 'asuka.sakurai@startus-kanazawa.org',  name: '櫻井', color: '#8B5CF6' },
 ];
 
 // カレンダー表示時間帯（フォールバック）→ 本来は app_config テーブルで管理
