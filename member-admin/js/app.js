@@ -380,6 +380,7 @@ window.memberApp = {
   goToToday,
   refreshCalendar,
   authorizeCalendar,
+  switchCalendarAccount,
   renderSchedule,
   navigateSchedule,
   goToScheduleToday,
