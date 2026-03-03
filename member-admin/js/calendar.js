@@ -40,6 +40,9 @@ export async function renderCalendar() {
   const container = document.getElementById('calendar-content');
   if (!container) return;
 
+  // タブ切り替え時は常に日表示をデフォルトにする
+  currentMode = 'DAY';
+
   const toolbar = `
     <div class="cal-toolbar">
       <div class="cal-mode-toggle">
