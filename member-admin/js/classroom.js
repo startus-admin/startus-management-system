@@ -323,11 +323,20 @@ export function openClassroomEditForm(id) {
   openClassroomForm(c);
 }
 
+function parseTimeSlot(timeSlot) {
+  if (!timeSlot) return { start: '', end: '' };
+  const parts = timeSlot.split(/[〜~\-ー]/);
+  const start = (parts[0] || '').trim();
+  const end = (parts[1] || '').trim();
+  return { start, end };
+}
+
 function openClassroomForm(classroom) {
   const isEdit = !!classroom;
   const c = classroom || {};
   const title = isEdit ? '教室編集' : '教室追加';
   const days = c.day_of_week || [];
+  const time = parseTimeSlot(c.time_slot);
 
   const categoryOptions = CATEGORIES.map(cat =>
     `<option value="${escapeHtml(cat)}" ${c.category === cat ? 'selected' : ''}>${escapeHtml(cat)}</option>`
