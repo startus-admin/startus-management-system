@@ -149,6 +149,7 @@ export function renderAppSettings() {
   const calStartHour = getCalendarStartHour();
   const calEndHour = getCalendarEndHour();
   const scheduleUrl = getScheduleApiUrl();
+  const calendarApiUrl = getCalendarApiUrl();
 
   // 時間セレクトオプション生成
   const hourOptions = (selected) => {
