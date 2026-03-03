@@ -192,12 +192,13 @@ export function authorizeCalendar() {
 }
 
 export function switchCalendarAccount() {
+  const oldToken = accessToken;
   accessToken = null;
   calendarAccountEmail = null;
   cachedEvents = {};
   // Revoke current token to force account picker
-  if (window.google?.accounts?.oauth2) {
-    window.google.accounts.oauth2.revoke(accessToken, () => {});
+  if (oldToken && window.google?.accounts?.oauth2) {
+    window.google.accounts.oauth2.revoke(oldToken, () => {});
   }
   requestCalendarAccess(true);
 }
