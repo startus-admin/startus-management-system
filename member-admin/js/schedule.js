@@ -334,6 +334,14 @@ async function fetchApplicationCounts(startDate, endDate) {
   return cachedAppData;
 }
 
+// --- 日付正規化ヘルパー ---
+
+/** YYYY/MM/DD → YYYY-MM-DD に統一 */
+function normalizeDate(dateStr) {
+  if (!dateStr) return '';
+  return dateStr.replace(/\//g, '-');
+}
+
 // --- Enrichment ---
 
 function enrichEvent(event) {
