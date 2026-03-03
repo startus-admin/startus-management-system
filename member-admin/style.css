@@ -2337,6 +2337,35 @@ body {
   to { transform: rotate(360deg); }
 }
 
+.cal-column-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--gray-300);
+  font-size: 12px;
+}
+.cal-column-error .material-icons {
+  font-size: 24px;
+  color: var(--warning);
+}
+
+.cal-account-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--gray-400);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Current time indicator */
 .cal-now-line {
   position: absolute;
