@@ -871,10 +871,10 @@ export function showScheduleEventDetail(eventId) {
 
   const e = enrichEvent(event);
   const trials = cachedAppData ? getTrialsForEvent(e, cachedAppData) : [];
-  const joins = cachedAppData ? getJoinsForClass(e, cachedAppData) : [];
-  const withdrawals = cachedAppData ? getWithdrawalsForClass(e, cachedAppData) : [];
-  const suspensions = cachedAppData ? getSuspensionsForClass(e, cachedAppData) : [];
-  const reinstatements = cachedAppData ? getReinstatementsForClass(e, cachedAppData) : [];
+  const joins = cachedAppData ? getJoinsForEvent(e, cachedAppData) : [];
+  const withdrawals = cachedAppData ? getWithdrawalsForEvent(e, cachedAppData) : [];
+  const suspensions = cachedAppData ? getSuspensionsForEvent(e, cachedAppData) : [];
+  const reinstatements = cachedAppData ? getReinstatementsForEvent(e, cachedAppData) : [];
 
   const eventDate = new Date(e.start);
   const dateLabel = `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日（${DAY_NAMES[eventDate.getDay()]}）`;
