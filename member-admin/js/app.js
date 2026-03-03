@@ -381,6 +381,8 @@ window.memberApp = {
   refreshCalendar,
   authorizeCalendar,
   switchCalendarAccount,
+  changeCalendarMode,
+  openGoogleCalendar,
   renderSchedule,
   navigateSchedule,
   goToScheduleToday,
