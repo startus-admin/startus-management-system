@@ -263,7 +263,7 @@ async function showApp(email) {
 
   // チャット初期化
   const chatStaff = getStaffByEmail(email);
-  console.log('chat init: email=', email, 'staff=', chatStaff);
+  // (セキュリティ: PII をコンソールに出力しない)
   if (chatStaff) {
     await initChat(chatStaff);
   } else {
