@@ -306,11 +306,11 @@ export async function renderCalendar() {
   // 現在時刻付近にスクロール
   if (isToday(currentDate)) {
     requestAnimationFrame(() => {
-      const body = container.querySelector('.cal-day-body');
-      if (body) {
+      const dayContainer = container.querySelector('.cal-day-container');
+      if (dayContainer) {
         const now = new Date();
         const scrollTo = ((now.getHours() - startHour - 1) * HOUR_HEIGHT);
-        body.scrollTop = Math.max(0, scrollTo);
+        dayContainer.scrollTop = Math.max(0, scrollTo);
       }
     });
   }

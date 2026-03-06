@@ -2440,8 +2440,8 @@ body {
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto;
+  max-height: calc(100vh - 160px);
 }
 
 /* Loading & Error */
@@ -2535,10 +2535,6 @@ body {
 /* Day Body (scrollable area) */
 .cal-day-body {
   display: flex;
-  max-height: calc(100vh - 200px);
-  min-height: 400px;
-  overflow-y: auto;
-  overflow-x: hidden;
   min-width: fit-content;
 }
 
@@ -3957,8 +3953,8 @@ body {
     min-width: 80px;
   }
 
-  .cal-day-body {
-    max-height: calc(100vh - 180px);
+  .cal-day-container {
+    max-height: calc(100vh - 140px);
   }
 
   /* Schedule mobile */
