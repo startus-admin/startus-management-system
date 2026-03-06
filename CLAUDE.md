@@ -3,7 +3,7 @@
 ## プロジェクト概要
 
 STARTUS Sports Academy 管理システム（STARTUS Management System）。Vanilla JavaScript + Supabase のWebアプリ。
-Vercel にデプロイ: https://member-manager-nu.vercel.app
+Vercel にデプロイ: https://startus-management-system.vercel.app
 
 ## 重要ルール
 
