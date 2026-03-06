@@ -27,7 +27,7 @@
 │                                                   │
 │  📝 Google フォーム + GAS（各種申請）                │
 │     → 体験申込・入会・退会・振替・変更フォーム         │
-│     → Microsoft Forms からタグ情報を取得            │
+│     → SharePoint Lists からタグ情報を取得            │
 │                                                   │
 │  💻 会員管理アプリ（member-manager）                 │
 │     → 会員一覧・申請管理・体験管理・月謝管理          │
