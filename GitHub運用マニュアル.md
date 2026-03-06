@@ -82,7 +82,7 @@
 
 ```
 member-manager/
-├── member-admin/          ← メインのアプリ（管理画面）
+├── startus-admin/         ← メインのアプリ（管理画面）
 │   ├── index.html         ← 画面の構造
 │   ├── style.css          ← デザイン
 │   └── js/                ← 動作するコード
