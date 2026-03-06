@@ -40,7 +40,7 @@
 ## 3. ファイル構成
 
 ```
-member-admin/
+startus-admin/
 ├── index.html            メインページ（ログイン＋アプリ、シングルページ）
 ├── style.css             スタイルシート
 ├── js/
