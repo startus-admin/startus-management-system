@@ -74,6 +74,9 @@
       <button class="tab-btn" data-tab="schedule" onclick="window.memberApp.switchTab('schedule')">
         <span class="material-icons">event_note</span>スケジュール
       </button>
+      <button class="tab-btn" data-tab="sm" onclick="window.memberApp.switchTab('sm')">
+        <span class="material-icons">event_available</span>スケジュール管理
+      </button>
       <button class="tab-btn admin-only" data-tab="master" onclick="window.memberApp.switchTab('master')">
         <span class="material-icons">tune</span>マスタ
       </button>
@@ -450,6 +453,217 @@
       </div>
     </main>
 
+    <!-- ===== スケジュール管理画面 ===== -->
+    <main class="main-content" id="sm-screen" style="display:none">
+
+      <!-- サブタブバー -->
+      <div class="sm-subtab-bar">
+        <button class="sm-tab-btn active" data-tab="list" onclick="window.app.switchSmTab('list')">
+          <span class="material-icons">list</span>リスト
+        </button>
+        <button class="sm-tab-btn" data-tab="stats" onclick="window.app.switchSmTab('stats')">
+          <span class="material-icons">bar_chart</span>統計
+        </button>
+        <button class="sm-tab-btn" data-tab="calendar" onclick="window.app.switchSmTab('calendar')">
+          <span class="material-icons">calendar_month</span>カレンダー
+        </button>
+      </div>
+
+      <!-- ===== リスト画面 ===== -->
+      <div id="sm-list-screen">
+        <section class="toolbar">
+          <div class="toolbar-left">
+            <select id="sm-list-fy-select" class="fy-select" onchange="window.app.onSmListFYChange()"></select>
+            <div class="filter-dropdown" id="sm-filter-dropdown">
+              <button class="filter-toggle-btn" id="sm-filter-toggle-btn" onclick="window.app.toggleSmFilterPanel()">
+                <span class="material-icons">tune</span> 絞り込み
+                <span class="filter-active-badge" id="sm-filter-active-badge" style="display:none">0</span>
+                <span class="material-icons" id="sm-filter-toggle-arrow">expand_more</span>
+              </button>
+              <div class="filter-panel" id="sm-filter-panel">
+                <div class="filter-panel-header">
+                  <span class="filter-panel-title">絞り込み</span>
+                  <button class="filter-panel-close" onclick="window.app.closeSmFilterPanel()"><span class="material-icons">close</span></button>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">教室</span>
+                    <button id="sm-class-filter-clear-btn" class="filter-section-clear" style="display:none" onclick="window.app.clearSmClassFilter()">クリア</button>
+                  </div>
+                  <div id="sm-filter-class-chips" class="filter-chips-container"></div>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">月</span>
+                    <button id="sm-month-filter-clear-btn" class="filter-section-clear" style="display:none" onclick="window.app.clearSmMonthFilter()">クリア</button>
+                  </div>
+                  <div id="sm-filter-month-chips" class="filter-chips-container"></div>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">ステータス</span>
+                    <button id="sm-status-filter-clear-btn" class="filter-section-clear" style="display:none" onclick="window.app.clearSmStatusFilter()">クリア</button>
+                  </div>
+                  <div id="sm-filter-status-chips" class="filter-chips-container"></div>
+                </div>
+                <div class="filter-panel-footer">
+                  <button class="btn btn-secondary btn-sm" onclick="window.app.clearSmAllFilters()">すべてクリア</button>
+                  <button class="btn btn-outline btn-sm" onclick="window.app.closeSmFilterPanel()">閉じる</button>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="window.app.openSmAddScheduleForm()">
+              <span class="material-icons">add</span>追加
+            </button>
+            <button class="btn btn-outline" onclick="window.app.openSmGenerateForm()">
+              <span class="material-icons">auto_fix_high</span>一括生成
+            </button>
+            <button class="btn btn-outline" onclick="window.app.openSmICSImportForm()">
+              <span class="material-icons">upload_file</span>ICSインポート
+            </button>
+          </div>
+        </section>
+
+        <!-- 一括操作バー -->
+        <div class="bulk-bar" id="sm-bulk-bar" style="display:none">
+          <div class="bulk-bar-left">
+            <button class="btn-bulk-clear" onclick="window.app.clearSmBulkSelection()">
+              <span class="material-icons">close</span>
+            </button>
+            <span><strong id="sm-bulk-count">0</strong>件選択中</span>
+          </div>
+          <div class="bulk-bar-right">
+            <button class="btn btn-sm btn-confirm" onclick="window.app.bulkSmConfirm()">
+              <span class="material-icons">check_circle</span>確定
+            </button>
+            <button class="btn btn-sm btn-tentative" onclick="window.app.bulkSmTentative()">
+              <span class="material-icons">schedule</span>暫定
+            </button>
+            <button class="btn btn-sm btn-canceled-bulk" onclick="window.app.bulkSmCancel()">
+              <span class="material-icons">cancel</span>中止
+            </button>
+            <button class="btn btn-sm btn-publish" onclick="window.app.bulkSmPublish()">
+              <span class="material-icons">visibility</span>公開
+            </button>
+            <button class="btn btn-sm btn-unpublish" onclick="window.app.bulkSmUnpublish()">
+              <span class="material-icons">visibility_off</span>非公開
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="window.app.bulkSmDelete()">
+              <span class="material-icons">delete</span>削除
+            </button>
+          </div>
+        </div>
+
+        <!-- スケジュールリスト -->
+        <div class="list-container">
+          <div id="sm-schedule-list">
+            <div class="sch-loading">
+              <span class="material-icons sm-spinner" style="font-size:32px;color:var(--gray-300)">sync</span>
+              <p>読み込み中...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 統計画面 ===== -->
+      <div id="sm-stats-screen" style="display:none">
+        <section class="toolbar">
+          <div class="toolbar-left">
+            <select id="sm-fy-select" class="fy-select" onchange="window.app.onSmFYChange()"></select>
+            <div class="filter-dropdown" id="sm-stats-filter-dropdown">
+              <button class="filter-toggle-btn" id="sm-stats-filter-toggle-btn" onclick="window.app.toggleSmStatsFilterPanel()">
+                <span class="material-icons">tune</span> 絞り込み
+                <span class="filter-active-badge" id="sm-stats-filter-active-badge" style="display:none">0</span>
+                <span class="material-icons" id="sm-stats-filter-toggle-arrow">expand_more</span>
+              </button>
+              <div class="filter-panel" id="sm-stats-filter-panel">
+                <div class="filter-panel-header">
+                  <span class="filter-panel-title">絞り込み</span>
+                  <button class="filter-panel-close" onclick="window.app.closeSmStatsFilterPanel()"><span class="material-icons">close</span></button>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">教室</span>
+                    <button id="sm-stats-class-filter-clear-btn" class="filter-section-clear" style="display:none" onclick="window.app.clearSmStatsClassFilter()">クリア</button>
+                  </div>
+                  <div id="sm-stats-filter-class-chips" class="filter-chips-container"></div>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">達成状況</span>
+                  </div>
+                  <div class="filter-chips-container">
+                    <button class="filter-chip sm-stats-achievement-chip active" data-achievement="all" onclick="window.app.setSmStatsAchievementFilter('all')">すべて</button>
+                    <button class="filter-chip sm-stats-achievement-chip" data-achievement="ok" onclick="window.app.setSmStatsAchievementFilter('ok')">達成</button>
+                    <button class="filter-chip sm-stats-achievement-chip" data-achievement="warn" onclick="window.app.setSmStatsAchievementFilter('warn')">進行中</button>
+                    <button class="filter-chip sm-stats-achievement-chip" data-achievement="low" onclick="window.app.setSmStatsAchievementFilter('low')">要注意</button>
+                  </div>
+                </div>
+                <div class="filter-panel-footer">
+                  <button class="btn btn-secondary btn-sm" onclick="window.app.clearSmStatsFilters()">すべてクリア</button>
+                  <button class="btn btn-outline btn-sm" onclick="window.app.closeSmStatsFilterPanel()">閉じる</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div class="stats-page">
+          <div id="sm-progress-bars">
+            <div class="empty-state">
+              <span class="material-icons empty-icon">bar_chart</span>
+              <p>読み込み中...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== カレンダー画面 ===== -->
+      <div id="sm-calendar-screen" style="display:none">
+        <section class="toolbar">
+          <div class="toolbar-left">
+            <select id="sm-calendar-fy-select" class="fy-select" onchange="window.app.onSmCalendarFYChange()"></select>
+            <div class="filter-dropdown" id="sm-cal-filter-dropdown">
+              <button class="filter-toggle-btn" id="sm-cal-filter-toggle-btn" onclick="window.app.toggleSmCalendarFilterPanel()">
+                <span class="material-icons">tune</span> 絞り込み
+                <span class="filter-active-badge" id="sm-cal-filter-active-badge" style="display:none">0</span>
+                <span class="material-icons" id="sm-cal-filter-toggle-arrow">expand_more</span>
+              </button>
+              <div class="filter-panel" id="sm-cal-filter-panel">
+                <div class="filter-panel-header">
+                  <span class="filter-panel-title">絞り込み</span>
+                  <button class="filter-panel-close" onclick="window.app.closeSmCalendarFilterPanel()"><span class="material-icons">close</span></button>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">教室</span>
+                    <button id="sm-cal-class-filter-clear-btn" class="filter-section-clear" style="display:none" onclick="window.app.clearSmCalendarClassFilter()">クリア</button>
+                  </div>
+                  <div id="sm-cal-filter-class-chips" class="filter-chips-container"></div>
+                </div>
+                <div class="filter-section">
+                  <div class="filter-section-header">
+                    <span class="filter-section-label">ステータス</span>
+                  </div>
+                  <div class="filter-chips-container">
+                    <button class="filter-chip sm-cal-status-chip cal-status-chip legend-tentative active" data-status="tentative" onclick="window.app.toggleSmCalendarStatus('tentative')">暫定</button>
+                    <button class="filter-chip sm-cal-status-chip cal-status-chip legend-confirmed active" data-status="confirmed" onclick="window.app.toggleSmCalendarStatus('confirmed')">確定（非公開）</button>
+                    <button class="filter-chip sm-cal-status-chip cal-status-chip legend-published active" data-status="published" onclick="window.app.toggleSmCalendarStatus('published')">公開済み</button>
+                    <button class="filter-chip sm-cal-status-chip cal-status-chip legend-canceled active" data-status="canceled" onclick="window.app.toggleSmCalendarStatus('canceled')">中止</button>
+                  </div>
+                </div>
+                <div class="filter-panel-footer">
+                  <button class="btn btn-secondary btn-sm" onclick="window.app.clearSmCalendarFilters()">すべてクリア</button>
+                  <button class="btn btn-outline btn-sm" onclick="window.app.closeSmCalendarFilterPanel()">閉じる</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div id="sm-fullcalendar"></div>
+      </div>
+
+    </main>
+
     <!-- ===== マスタ管理画面 ===== -->
     <main class="main-content" id="master-screen" style="display:none">
       <div class="section-header">
@@ -572,6 +786,10 @@
 
   <!-- ===== Toast ===== -->
   <div id="toast-container"></div>
+
+  <!-- ===== FullCalendar (スケジュール管理タブ用) ===== -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.15/locales/ja.global.min.js"></script>
 
   <!-- ===== App Script ===== -->
   <script type="module" src="js/app.js"></script>

@@ -17,7 +17,7 @@ export function switchTab(tabName) {
   });
 
   // 画面の切り替え
-  const screens = ['members-screen', 'fee-overview-screen', 'applications-screen', 'trials-screen', 'stats-screen', 'staff-screen', 'calendar-screen', 'schedule-screen', 'master-screen'];
+  const screens = ['members-screen', 'fee-overview-screen', 'applications-screen', 'trials-screen', 'stats-screen', 'staff-screen', 'calendar-screen', 'schedule-screen', 'sm-screen', 'master-screen'];
   screens.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';

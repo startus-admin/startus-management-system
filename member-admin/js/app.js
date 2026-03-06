@@ -57,6 +57,7 @@ import {
   openDmWithStaff, chatOpenChannel, chatBackToList, chatSendMessage,
   loadUnreadCounts, updateUnreadBadge
 } from './chat.js';
+import { initScheduleManager } from './sm-manager.js';
 
 // --- Toast ---
 
@@ -230,6 +231,7 @@ async function showApp(email) {
     if (tabName === 'staff') loadStaff();
     if (tabName === 'calendar') renderCalendar();
     if (tabName === 'schedule') renderSchedule();
+    if (tabName === 'sm') initScheduleManager();
     if (tabName === 'master') { renderClassroomScreen(); renderAppSettings(); }
   });
 
