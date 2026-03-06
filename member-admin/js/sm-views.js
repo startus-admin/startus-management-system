@@ -8,7 +8,7 @@ import {
   smPatchCache, smRemoveFromCache,
 } from './sm-store.js';
 import {
-  smGetFilters, smGetStatsFilters, renderSmStatsFilterChips,
+  getSmFilters, getSmStatsFilters, renderSmStatsFilterChips,
   smRenderFromCache, smReloadAndRender,
 } from './sm-manager.js';
 import { showToast, openModal, closeModal } from './app.js';
@@ -55,7 +55,7 @@ export function renderSmProgressBars(schedules, classrooms) {
     else lowCount++;
   });
 
-  const { classNames, achievement } = smGetStatsFilters();
+  const { classNames, achievement } = getSmStatsFilters();
   let filtered = classrooms;
   if (classNames.length > 0) filtered = filtered.filter(c => classNames.includes(c.name));
   if (achievement !== 'all') {
@@ -130,7 +130,7 @@ let currentPage = 1;
 let lastFiltered = [];
 
 export function renderSmScheduleList(schedules) {
-  const filters = smGetFilters();
+  const filters = getSmFilters();
   let filtered = [...schedules];
   if (filters.classNames?.length) filtered = filtered.filter(s => filters.classNames.includes(s.class_name));
   if (filters.months?.length)     filtered = filtered.filter(s => filters.months.some(m => s.date.startsWith(m)));
