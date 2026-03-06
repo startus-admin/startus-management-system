@@ -31,7 +31,7 @@ STARTUS スポーツアカデミーの業務システムは、以下の複数サ
 - SharePoint（教室マスタ管理）
 - Google Calendar + Sgrum（スケジュール入力・表示）
 - Google Apps Script（フォーム処理・HP カレンダー表示）
-- Microsoft Forms（フォームタグ取得）
+- SharePoint Lists（フォームタグ取得）
 - Supabase + Vercel（会員管理アプリ）
 - 別 Supabase（スケジュール管理アプリ・開発中）
 
