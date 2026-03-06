@@ -74,7 +74,7 @@ STARTUS スポーツアカデミーの業務システムは、以下の複数サ
                    │              │
                    ▼              │
             ┌──────────────┐     │
-            │member-admin  │     │
+            │startus-admin  │     │
             │スケジュールタブ│     │
             └──────────────┘     │
                                  │
@@ -195,7 +195,7 @@ Supabase classrooms:           calendar_tag = "kidsdance"
 | サービス | 廃止時期 | 代替 |
 |----------|---------|------|
 | SharePoint ClassList | Phase 2 完了後 | Supabase classrooms |
-| Sgrum | Phase 1 完了後 | member-admin スケジュール管理タブ |
+| Sgrum | Phase 1 完了後 | startus-admin スケジュール管理タブ |
 | Supabase (calendar-manager 別インスタンス) | Phase 0 完了後 | 統一 Supabase に統合 |
 | SharePoint Lists タグ取得 | Phase 2 完了後 | Supabase classrooms |
 
@@ -299,7 +299,7 @@ CREATE POLICY "anon_read_published" ON schedules
 
 #### 4.1.3 確認項目
 
-- [ ] 統一 DB で member-admin の全機能が動作すること
+- [ ] 統一 DB で startus-admin の全機能が動作すること
 - [ ] classrooms テーブルのデータが正しいこと
 - [ ] schedules テーブルが作成されていること
 - [ ] RLS ポリシーが正しく動作すること
@@ -308,7 +308,7 @@ CREATE POLICY "anon_read_published" ON schedules
 
 #### 4.2.1 モジュール移植
 
-| 移植元（calendar-manager） | 移植先（member-admin/js/） | 備考 |
+| 移植元（calendar-manager） | 移植先（startus-admin/js/） | 備考 |
 |---------------------------|--------------------------|------|
 | js/dashboard.js | js/schedule-admin.js | スケジュール管理 UI |
 | js/generator.js | js/schedule-generator.js | 一括生成機能 |
@@ -324,7 +324,7 @@ CREATE POLICY "anon_read_published" ON schedules
 | 作業 | 内容 |
 |------|------|
 | タブ追加 | index.html に「スケジュール管理」タブを追加（既存「スケジュール」タブとは別） |
-| CSS 統合 | calendar-manager の style.css を member-admin の style.css にマージ |
+| CSS 統合 | calendar-manager の style.css を startus-admin の style.css にマージ |
 | FullCalendar | CDN リンクを index.html に追加 |
 | 設定 | config.js に Google Calendar API 設定を追加 |
 
@@ -349,7 +349,7 @@ Phase 1 完了後、既存「スケジュール」タブのデータソースを
 
 #### 4.2.5 完了条件
 
-- [ ] member-admin 内で「スケジュール管理」タブが動作
+- [ ] startus-admin 内で「スケジュール管理」タブが動作
 - [ ] スケジュールの CRUD（作成・読取・更新・削除）が可能
 - [ ] 年間一括生成が動作
 - [ ] FullCalendar でスケジュール表示が可能
@@ -361,7 +361,7 @@ Phase 1 完了後、既存「スケジュール」タブのデータソースを
 
 ## 5. Phase 1: スケジュール入力の統合
 
-**目的:** スケジュールの入力方法を Sgrum → member-admin に移行。
+**目的:** スケジュールの入力方法を Sgrum → startus-admin に移行。
 **職員への影響:** あり（入力方法が変わる）
 
 ### 5.1 移行手順
@@ -372,12 +372,12 @@ Phase 1 完了後、既存「スケジュール」タブのデータソースを
 | 5.1.2 | Google Calendar 同期の有効化 | `is_published = true` のスケジュールを GCal に同期 |
 | 5.1.3 | 動作検証 | テスト環境で一括生成→GCal同期→HPカレンダー表示の一連フローを確認 |
 | 5.1.4 | 職員研修 | スケジュール管理タブの使い方を説明 |
-| 5.1.5 | 切り替え | Sgrum での入力を停止、member-admin での入力に移行 |
+| 5.1.5 | 切り替え | Sgrum での入力を停止、startus-admin での入力に移行 |
 
 ### 5.2 並行運用期間
 
 切り替え直後の2週間は並行運用を推奨：
-- member-admin で入力 → GCal に同期
+- startus-admin で入力 → GCal に同期
 - HP カレンダーが正しく表示されることを毎日確認
 - 問題があれば Sgrum に戻す（ロールバック可能）
 
@@ -385,13 +385,13 @@ Phase 1 完了後、既存「スケジュール」タブのデータソースを
 
 | 段階 | API の状態 |
 |------|-----------|
-| Phase 1 開始時 | GAS API は稼働中。member-admin「スケジュール」タブはまだ GAS API を使用 |
+| Phase 1 開始時 | GAS API は稼働中。startus-admin「スケジュール」タブはまだ GAS API を使用 |
 | Phase 1 完了後 | 「スケジュール」タブのデータソースを Supabase schedules に切り替え |
 | 最終 | GAS Schedule API を廃止 |
 
 ### 5.4 確認項目
 
-- [ ] member-admin から年間スケジュールを一括生成できる
+- [ ] startus-admin から年間スケジュールを一括生成できる
 - [ ] 生成したスケジュールが Google Calendar に同期される
 - [ ] HP のカレンダー Widget にスケジュールが正しく表示される
 - [ ] 体験フォームの日程表示に影響がないこと（GCal経由で表示されるため）
@@ -518,7 +518,7 @@ CREATE POLICY "anon_read_classrooms" ON classrooms
 - [ ] 体験フォームで教室一覧が正しく表示される
 - [ ] 体験フォームで教室選択後のカレンダー表示が正しい
 - [ ] 入会・振替・退会・変更フォームでも同様に動作
-- [ ] member-admin「マスタ」タブで教室の追加・編集が可能
+- [ ] startus-admin「マスタ」タブで教室の追加・編集が可能
 - [ ] 教室変更がフォームに即反映される
 
 ---
@@ -942,7 +942,7 @@ export const SUPABASE_URL = IS_PRODUCTION
 | ファイル | 内容 |
 |---------|------|
 | member-manager/CLAUDE.md | プロジェクト設定 |
-| member-manager/member-admin-spec.md | 管理アプリ仕様書 |
+| member-manager/startus-admin-spec.md | 管理アプリ仕様書 |
 | member-manager/application-spec.md | 申請ワークフロー仕様 |
 | calendar-manager/requirements.md | スケジュール管理要件定義 |
 | member-manager/SECURITY.md | セキュリティ実装 |
