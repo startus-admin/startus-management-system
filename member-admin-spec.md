@@ -200,7 +200,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 │                                  │
 │   ┌────────────────────────┐    │
 │   │  [manage_accounts icon] │    │
-│   │      会員管理            │    │
+│   │  STARTUS Management System│    │
 │   │                          │    │
 │   │  Googleアカウントで       │    │
 │   │  ログインしてください     │    │
