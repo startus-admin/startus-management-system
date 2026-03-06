@@ -12,19 +12,14 @@ const screens = [
 
 export function initTabs(callback) {
   onTabChange = callback;
-
-  // サイドバー折りたたみ状態をlocalStorageから復元
-  const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-  if (collapsed) {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.classList.add('collapsed');
-    const icon = document.getElementById('sidebar-toggle-icon');
-    if (icon) icon.textContent = 'chevron_right';
-  }
 }
 
 export function switchTab(tabName) {
-  if (currentTab === tabName) return;
+  if (currentTab === tabName) {
+    // 同じタブをクリック → サイドバーを閉じるだけ
+    closeSidebar();
+    return;
+  }
   currentTab = tabName;
 
   // サイドバーのアクティブ状態を更新
@@ -41,36 +36,37 @@ export function switchTab(tabName) {
   const target = document.getElementById(`${tabName}-screen`);
   if (target) target.style.display = 'block';
 
-  // モバイル: サイドバーを閉じる
-  closeSidebarMobile();
+  // サイドバーを閉じる
+  closeSidebar();
 
   if (onTabChange) onTabChange(tabName);
 }
 
 export function getCurrentTab() { return currentTab; }
 
-// --- サイドバー開閉（モバイル用） ---
+// --- サイドバー開閉（Geminiスタイル: オーバーレイトグル） ---
 export function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
   if (!sidebar) return;
-  sidebar.classList.toggle('open');
+
+  const isOpen = sidebar.classList.contains('open');
+  if (isOpen) {
+    closeSidebar();
+  } else {
+    sidebar.classList.add('open');
+    if (overlay) overlay.classList.add('active');
+  }
 }
 
-function closeSidebarMobile() {
+function closeSidebar() {
   const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
   if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('active');
 }
 
-// --- サイドバー折りたたみ/展開（PC用） ---
+// toggleSidebarCollapse は互換性のため残すが、toggleSidebar にリダイレクト
 export function toggleSidebarCollapse() {
-  const sidebar = document.getElementById('sidebar');
-  if (!sidebar) return;
-
-  sidebar.classList.toggle('collapsed');
-  const isCollapsed = sidebar.classList.contains('collapsed');
-
-  const icon = document.getElementById('sidebar-toggle-icon');
-  if (icon) icon.textContent = isCollapsed ? 'chevron_right' : 'chevron_left';
-
-  localStorage.setItem('sidebar-collapsed', isCollapsed);
+  toggleSidebar();
 }
