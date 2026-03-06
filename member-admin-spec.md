@@ -163,7 +163,7 @@ export const ALLOWED_EMAILS = [
   'hisasimatu3117@gmail.com'
 ];
 
-export const APP_NAME = 'STARTUS 会員管理';
+export const APP_NAME = 'STARTUS Management System';
 ```
 
 ### 6.2 フロー
