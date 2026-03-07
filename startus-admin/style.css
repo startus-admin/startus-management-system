@@ -5544,11 +5544,10 @@ body {
 }
 .badge-shop-danger-outline {
   background: transparent;
-  border: 1px solid var(--danger-color);
-  color: var(--danger-color);
+  border: 1px solid var(--gray-300);
+  color: var(--gray-400);
   font-size: 11px;
   padding: 1px 6px;
-  text-decoration: line-through;
 }
 
 /* --- Shop grid layouts --- */
@@ -5563,14 +5562,19 @@ body {
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 .shop-order-grid {
-  grid-template-columns: 140px 90px 1fr 80px 1fr 90px 60px 130px;
+  grid-template-columns: 140px 90px 80px 80px 1fr 90px 60px 130px;
   gap: 8px;
   align-items: center;
 }
 .shop-customer-grid {
-  grid-template-columns: 1fr 1fr 120px 80px 70px 100px 130px;
+  grid-template-columns: 100px 1fr 120px 80px 70px 100px 130px;
   gap: 8px;
   align-items: center;
+}
+.shop-customer-grid span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .list-item.shop-order-grid,
 .list-item.shop-customer-grid {
@@ -5588,7 +5592,8 @@ body {
 .shop-cell-mono { font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; color: var(--gray-600); }
 .shop-cell-amount { font-weight: 600; text-align: right; }
 .shop-cell-date { font-size: 12px; color: var(--gray-500); }
-.shop-cell-items { font-size: 12px; color: var(--gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-cell-items { font-size: 12px; color: var(--gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.shop-order-grid span:nth-child(3) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* --- Shop detail modal --- */
 .shop-detail { padding: 4px 0; }
@@ -5720,11 +5725,12 @@ body {
 .shop-inv-row:last-child { border-bottom: none; }
 .shop-color-dot {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   border: 1px solid var(--gray-200);
   vertical-align: middle;
+  margin-left: 4px;
 }
 
 /* --- Shop summary cards --- */
