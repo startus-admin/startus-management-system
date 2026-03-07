@@ -4,7 +4,7 @@ import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { getClassrooms, getActiveClassrooms } from './classroom.js';
 import { updateTabBadges } from './notifications.js';
 import { logActivity, openApplicationHistory as openAppHistory } from './history.js';
-import { getJimukyokuStaff, getStaffById } from './staff.js';
+import { getJimukyokuStaff, getStaffById, getAllActiveStaff } from './staff.js';
 import { sendTaskMessage } from './chat.js';
 
 // --- 定数 ---
@@ -261,7 +261,6 @@ const TRIAL_GRID_HEADER = `
     <span>ステータス</span>
     <span>担当</span>
     <span>体験希望日</span>
-    <span>きっかけ</span>
     <span>受付日</span>
     <span></span>
   </div>`;
@@ -271,16 +270,19 @@ function buildTrialGridRow(t) {
   const statusLabel = TRIAL_STATUS_LABELS[t.status] || t.status;
   const badgeClass = TRIAL_STATUS_BADGE[t.status] || '';
   const classes = Array.isArray(fd.desired_classes) ? fd.desired_classes.join('・') : fd.desired_classes || '';
-  const joined = hasJoinApplication(t);
   const createdDate = formatShortDate(t.created_at);
   const desiredDate = fd.desired_date || '';
-  const route = fd.route || '';
   const isOverdue = t.status === 'approved' && t.follow_up_date &&
     new Date(t.follow_up_date) < new Date(new Date().toDateString());
   const assigneeName = t.assigned_to ? (getStaffById(t.assigned_to)?.name || '') : '';
 
+  // 未割当ハイライト: pending or approved(フォロー中) で担当者なし
+  const needsAssignment = !t.assigned_to && (t.status === 'pending' || t.status === 'approved');
+
   return `
-    <div class="list-item" data-status="${t.status}" onclick="window.memberApp.showTrialDetail('${t.id}')">
+    <div class="list-item ${needsAssignment ? 'needs-assignment' : ''}" data-status="${t.status}"
+         onclick="window.memberApp.showTrialDetail('${t.id}')"
+         oncontextmenu="window.memberApp.showTrialContextMenu(event, '${t.id}')">
       <div class="grid-cell grid-cell-name">
         <span class="material-icons" style="font-size:18px;color:var(--gray-400);flex-shrink:0">directions_run</span>
         <strong>${escapeHtml(fd.name || '（名前なし）')}</strong>
@@ -296,10 +298,13 @@ function buildTrialGridRow(t) {
         ${isOverdue ? '<span class="badge badge-followup-overdue">要フォロー</span>' : ''}
       </div>
       <div class="grid-cell grid-cell-assignee">
-        ${assigneeName ? `<span class="badge badge-assignee">${escapeHtml(assigneeName)}</span>` : ''}
+        ${needsAssignment
+          ? '<span class="badge badge-warning-alert">未割当</span>'
+          : assigneeName
+            ? `<span class="badge badge-assignee">${escapeHtml(assigneeName)}</span>`
+            : ''}
       </div>
       <div class="grid-cell grid-cell-date">${escapeHtml(desiredDate)}</div>
-      <div class="grid-cell" style="font-size:0.8rem">${escapeHtml(route)}</div>
       <div class="grid-cell grid-cell-date">${escapeHtml(createdDate)}</div>
       <div class="grid-cell grid-cell-arrow">
         <span class="material-icons list-item-arrow">chevron_right</span>
@@ -1285,6 +1290,52 @@ export async function assignTrial(id, staffId) {
     if (modalBody) modalBody.scrollTop = scrollPos;
   });
   renderTrialListOnly();
+}
+
+// --- 右クリックコンテキストメニュー ---
+
+export function showTrialContextMenu(event, trialId) {
+  event.preventDefault();
+  event.stopPropagation();
+  const trial = allTrials.find(t => t.id === trialId);
+  if (!trial) return;
+
+  // enrolled/rejected は編集不可
+  if (trial.status === 'enrolled' || trial.status === 'rejected') return;
+
+  const menu = document.getElementById('app-context-menu');
+  if (!menu) return;
+  const header = menu.querySelector('.context-menu-header');
+  const items = menu.querySelector('.context-menu-items');
+
+  header.textContent = '担当者を変更';
+  const staffList = getAllActiveStaff();
+  items.innerHTML = `
+    <div class="context-menu-item" onclick="window.memberApp.contextAssignTrial('${trialId}', '')">
+      <span class="material-icons" style="font-size:16px">person_off</span> 未割当にする
+    </div>
+    ${staffList.map(s => `
+      <div class="context-menu-item ${trial.assigned_to === s.id ? 'active' : ''}"
+           onclick="window.memberApp.contextAssignTrial('${trialId}', '${s.id}')">
+        <span class="material-icons" style="font-size:16px">person</span>
+        ${escapeHtml(s.name)}${s.role !== 'スタッフ' ? ` <span style="font-size:0.75rem;color:var(--gray-400)">(${escapeHtml(s.role)})</span>` : ''}
+      </div>`).join('')}`;
+
+  menu.style.display = 'block';
+  menu.style.left = `${event.clientX}px`;
+  menu.style.top = `${event.clientY}px`;
+
+  requestAnimationFrame(() => {
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 8}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 8}px`;
+  });
+}
+
+export async function contextAssignTrial(trialId, staffId) {
+  const menu = document.getElementById('app-context-menu');
+  if (menu) menu.style.display = 'none';
+  await assignTrial(trialId, staffId || null);
 }
 
 export function openTrialHistory(id, label) {

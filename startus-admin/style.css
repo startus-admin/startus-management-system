@@ -4346,7 +4346,7 @@ body {
 #trial-list .trial-grid-header,
 #trial-list .list-item {
   display: grid;
-  grid-template-columns: minmax(120px, 1.5fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(90px, 1fr) 80px 90px minmax(80px, 1fr) 70px 32px;
+  grid-template-columns: minmax(120px, 1.5fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) 80px 90px 70px 32px;
   align-items: center;
   gap: 0 8px;
   padding: 10px 16px;
@@ -4386,6 +4386,15 @@ body {
   transform: none;
   background: var(--primary-lighter);
   box-shadow: none;
+}
+
+#trial-list .list-item.needs-assignment {
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+#trial-list .list-item.needs-assignment:hover {
+  background: #fef3c7;
 }
 
 /* --- 詳細モーダル 2カラムレイアウト --- */

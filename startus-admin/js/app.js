@@ -40,7 +40,8 @@ import {
   openTrialEditForm, saveTrialEdit, openTrialHistory,
   linkJoinApplication, unlinkJoinApplication, markTrialEnrolled,
   saveTrialFollowUp, assignTrial, toggleTrialWorkloadFilter,
-  initTrialSort, resetTrialFilters
+  initTrialSort, resetTrialFilters,
+  showTrialContextMenu, contextAssignTrial
 } from './trials.js';
 import { renderCalendar, navigateCalendarDay, goToCalendarToday, refreshCalendar, openGoogleCalendar, showCalendarEvent, changeCalendarMode } from './calendar.js';
 import {
@@ -410,6 +411,8 @@ window.memberApp = {
   showAppContextMenu,
   contextAssign,
   toggleTrialWorkloadFilter,
+  showTrialContextMenu,
+  contextAssignTrial,
   showStaffDetail,
   openStaffAddForm,
   openStaffEditForm,
