@@ -403,8 +403,8 @@ const APP_GRID_HEADER = `
     <span>種別</span>
     <span>教室/会員番号</span>
     <span>ステータス</span>
-    <span>担当</span>
-    <span>連絡先</span>
+    <span>受付担当</span>
+    <span>承認担当</span>
     <span>受付日</span>
     <span></span>
   </div>`;
@@ -417,10 +417,21 @@ function buildAppGridRow(a) {
   const badgeClass = APP_STATUS_BADGE[a.status] || '';
   const createdDate = formatShortDate(a.created_at);
   const classes = Array.isArray(fd.desired_classes) ? fd.desired_classes.join('・') : fd.desired_classes || '';
-  const assigneeName = a.assigned_to ? (getStaffById(a.assigned_to)?.name || '') : '';
+
+  // 受付担当: pending中はassigned_to、それ以外はreception_staff_id
+  const receptionStaffId = a.reception_staff_id || (a.status === 'pending' ? a.assigned_to : null);
+  const receptionName = receptionStaffId ? (getStaffById(receptionStaffId)?.name || '') : '';
+
+  // 承認担当: reviewed以降のassigned_to
+  const approvalName = (a.status !== 'pending' && a.assigned_to) ? (getStaffById(a.assigned_to)?.name || '') : '';
+
+  // 未割当アラート: reviewed で承認担当なし
+  const needsAssignment = a.status === 'reviewed' && !a.assigned_to;
 
   return `
-    <div class="list-item" data-status="${a.status}" onclick="window.memberApp.showApplicationDetail('${a.id}')">
+    <div class="list-item ${needsAssignment ? 'needs-assignment' : ''}" data-status="${a.status}"
+         onclick="window.memberApp.showApplicationDetail('${a.id}')"
+         oncontextmenu="window.memberApp.showAppContextMenu(event, '${a.id}')">
       <div class="grid-cell grid-cell-name">
         <span class="material-icons" style="font-size:18px;color:var(--gray-400);flex-shrink:0">${typeIcon}</span>
         <strong>${escapeHtml(fd.name || '（名前なし）')}</strong>
@@ -437,11 +448,14 @@ function buildAppGridRow(a) {
         ${buildChecklistProgressBadge(a)}
       </div>
       <div class="grid-cell grid-cell-assignee">
-        ${assigneeName ? `<span class="badge badge-assignee">${escapeHtml(assigneeName)}</span>` : ''}
+        ${receptionName ? `<span class="badge badge-assignee">${escapeHtml(receptionName)}</span>` : ''}
       </div>
-      <div class="grid-cell grid-cell-contact">
-        ${fd.phone ? `<span>${escapeHtml(fd.phone)}</span>` : ''}
-        ${fd.email ? `<span>${escapeHtml(fd.email)}</span>` : ''}
+      <div class="grid-cell grid-cell-assignee">
+        ${needsAssignment
+          ? '<span class="badge badge-warning-alert">未割当</span>'
+          : approvalName
+            ? `<span class="badge badge-assignee">${escapeHtml(approvalName)}</span>`
+            : ''}
       </div>
       <div class="grid-cell grid-cell-date">${escapeHtml(createdDate)}</div>
       <div class="grid-cell grid-cell-arrow">
@@ -1352,6 +1366,75 @@ export async function assignApplication(id, staffId) {
   });
   renderAppListOnly();
 }
+
+// --- 右クリックコンテキストメニュー ---
+
+export function showAppContextMenu(event, appId) {
+  event.preventDefault();
+  event.stopPropagation();
+  const app = allApplications.find(a => a.id === appId);
+  if (!app) return;
+
+  // approved/rejected は編集不可
+  if (app.status === 'approved' || app.status === 'rejected') return;
+
+  const menu = document.getElementById('app-context-menu');
+  if (!menu) return;
+  const header = menu.querySelector('.context-menu-header');
+  const items = menu.querySelector('.context-menu-items');
+
+  if (app.status === 'pending') {
+    header.textContent = '受付担当を変更';
+    const staffList = getAllActiveStaff();
+    items.innerHTML = `
+      <div class="context-menu-item" onclick="window.memberApp.contextAssign('${appId}', '')">
+        <span class="material-icons" style="font-size:16px">person_off</span> 未割当にする
+      </div>
+      ${staffList.map(s => `
+        <div class="context-menu-item ${app.assigned_to === s.id ? 'active' : ''}"
+             onclick="window.memberApp.contextAssign('${appId}', '${s.id}')">
+          <span class="material-icons" style="font-size:16px">person</span>
+          ${escapeHtml(s.name)}${s.role !== 'スタッフ' ? ` <span style="font-size:0.75rem;color:var(--gray-400)">(${escapeHtml(s.role)})</span>` : ''}
+        </div>`).join('')}`;
+  } else if (app.status === 'reviewed') {
+    header.textContent = '承認担当を割り当て';
+    const jimukyoku = getJimukyokuStaff();
+    items.innerHTML = `
+      <div class="context-menu-item" onclick="window.memberApp.contextAssign('${appId}', '')">
+        <span class="material-icons" style="font-size:16px">person_off</span> 未割当にする
+      </div>
+      ${jimukyoku.map(s => `
+        <div class="context-menu-item ${app.assigned_to === s.id ? 'active' : ''}"
+             onclick="window.memberApp.contextAssign('${appId}', '${s.id}')">
+          <span class="material-icons" style="font-size:16px">admin_panel_settings</span>
+          ${escapeHtml(s.name)}
+        </div>`).join('')}`;
+  }
+
+  menu.style.display = 'block';
+  menu.style.left = `${event.clientX}px`;
+  menu.style.top = `${event.clientY}px`;
+
+  // 画面外にはみ出さないよう調整
+  requestAnimationFrame(() => {
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 8}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 8}px`;
+  });
+}
+
+export async function contextAssign(appId, staffId) {
+  hideAppContextMenu();
+  await assignApplication(appId, staffId || null);
+}
+
+function hideAppContextMenu() {
+  const menu = document.getElementById('app-context-menu');
+  if (menu) menu.style.display = 'none';
+}
+
+// 画面クリックでメニューを閉じる
+document.addEventListener('click', hideAppContextMenu);
 
 // --- 受付完了フロー ---
 

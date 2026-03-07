@@ -29,7 +29,8 @@ import {
   openApplicationEditForm, saveApplicationEdit, openApplicationHistory,
   assignApplication, toggleAppWorkloadFilter,
   initAppSort, resetAppFilters,
-  completeReception, executeChecklistAction
+  completeReception, executeChecklistAction,
+  showAppContextMenu, contextAssign
 } from './applications.js';
 import {
   renderTrialList, showTrialDetail, updateTrialStatus,
@@ -406,6 +407,8 @@ window.memberApp = {
   toggleAppWorkloadFilter,
   completeReception,
   executeChecklistAction,
+  showAppContextMenu,
+  contextAssign,
   toggleTrialWorkloadFilter,
   showStaffDetail,
   openStaffAddForm,

@@ -4231,7 +4231,7 @@ body {
 #app-list .app-grid-header,
 #app-list .list-item {
   display: grid;
-  grid-template-columns: minmax(120px, 1.5fr) 80px minmax(100px, 1fr) minmax(100px, 1fr) 80px minmax(120px, 1fr) 70px 32px;
+  grid-template-columns: minmax(120px, 1.5fr) 80px minmax(80px, 1fr) minmax(100px, 1fr) 80px 80px 70px 32px;
   align-items: center;
   gap: 0 8px;
   padding: 10px 16px;
@@ -4271,6 +4271,75 @@ body {
   transform: none;
   background: var(--primary-lighter);
   box-shadow: none;
+}
+
+#app-list .list-item.needs-assignment {
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+#app-list .list-item.needs-assignment:hover {
+  background: #fef3c7;
+}
+
+.badge-warning-alert {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  animation: pulse-alert 2s ease-in-out infinite;
+}
+
+@keyframes pulse-alert {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* --- 右クリックコンテキストメニュー --- */
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  z-index: 1000;
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.context-menu-header {
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-menu-item:hover {
+  background: var(--primary-lighter);
+}
+
+.context-menu-item.active {
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-lighter);
+}
+
+.context-menu-item:last-child {
+  border-radius: 0 0 8px 8px;
 }
 
 /* --- 体験一覧テーブルグリッド --- */
