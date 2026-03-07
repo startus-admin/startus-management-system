@@ -807,7 +807,7 @@ function buildReceptionCompleteButton(app) {
               ${allChecked ? '' : 'disabled'}
               onclick="window.memberApp.completeReception('${app.id}')">
         <span class="material-icons">fact_check</span>
-        受付完了 → 事務局に引き継ぐ
+        受付完了
       </button>
       ${!allChecked ? '<p class="hint-text">全ての受付チェック項目を完了してください</p>' : ''}
     </div>`;
@@ -1355,36 +1355,6 @@ export async function assignApplication(id, staffId) {
 
 // --- 受付完了フロー ---
 
-function autoAssignToJimukyoku() {
-  const jimukyoku = getJimukyokuStaff();
-  if (jimukyoku.length === 0) return null;
-
-  // reviewed状態の申請数が最も少ない事務局スタッフに割り当て
-  const counts = {};
-  jimukyoku.forEach(s => { counts[s.id] = 0; });
-
-  allApplications
-    .filter(a => a.status === 'reviewed')
-    .forEach(a => {
-      if (a.assigned_to && counts[a.assigned_to] !== undefined) {
-        counts[a.assigned_to]++;
-      }
-    });
-
-  let minId = jimukyoku[0].id;
-  let minCount = counts[minId] ?? 0;
-
-  for (const s of jimukyoku) {
-    const c = counts[s.id] ?? 0;
-    if (c < minCount) {
-      minId = s.id;
-      minCount = c;
-    }
-  }
-
-  return minId;
-}
-
 export async function completeReception(appId) {
   const app = allApplications.find(a => a.id === appId);
   if (!app || app.status !== 'pending') return;
@@ -1397,17 +1367,10 @@ export async function completeReception(appId) {
     return;
   }
 
-  // 事務局スタッフ自動選定
-  const assigneeId = autoAssignToJimukyoku();
-  if (!assigneeId) {
-    showToast('事務局スタッフが見つかりません', 'error');
-    return;
-  }
-
   const { data: { session } } = await supabase.auth.getSession();
   const updateData = {
     status: 'reviewed',
-    assigned_to: assigneeId,
+    assigned_to: null,
     reception_staff_id: app.assigned_to || null,
     reviewed_at: new Date().toISOString(),
     reviewed_by: session?.user?.email || '',
@@ -1431,14 +1394,17 @@ export async function completeReception(appId) {
   // 履歴記録
   logActivity(null, 'app_edit', 'status', '未対応', '確認済み（受付完了）', appId);
 
-  // 事務局担当者にチャット通知
+  // 事務局スタッフ全員にチャット通知
   const fd = app.form_data || {};
   const typeLabel = APP_TYPE_LABELS[app.type] || app.type;
   const refLabel = `${fd.name || '（名前なし）'} ${typeLabel}申請`;
-  sendTaskMessage(assigneeId, 'application', appId, refLabel,
-    `${refLabel}の受付が完了しました。承認処理をお願いします。`);
+  const jimukyoku = getJimukyokuStaff();
+  for (const staff of jimukyoku) {
+    sendTaskMessage(staff.id, 'application', appId, refLabel,
+      `${refLabel}の受付が完了しました。承認担当を割り当ててください。`);
+  }
 
-  showToast('受付完了。事務局に引き継ぎました。', 'success');
+  showToast('受付完了しました。承認担当を手動で割り当ててください。', 'success');
   closeModal();
   await renderApplicationList();
   updateTabBadges();

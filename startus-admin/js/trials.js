@@ -291,7 +291,8 @@ function buildTrialGridRow(t) {
       </div>
       <div class="grid-cell grid-cell-badges">
         <span class="badge ${badgeClass}">${escapeHtml(statusLabel)}</span>
-        ${joined && t.status !== 'enrolled' ? '<span class="badge badge-enrolled">入会済</span>' : ''}
+        ${t.status === 'enrolled' ? '<span class="badge badge-enrolled">入会済</span>' : ''}
+        ${t.status !== 'enrolled' && t.linked_application_id ? '<span class="badge badge-info">紐付け中</span>' : ''}
         ${isOverdue ? '<span class="badge badge-followup-overdue">要フォロー</span>' : ''}
       </div>
       <div class="grid-cell grid-cell-assignee">
@@ -484,10 +485,15 @@ export async function showTrialDetail(id) {
         <span class="detail-label">処理日時</span>
         <span class="detail-value">${escapeHtml(formatDateTime(trial.processed_at))}</span>
       </div>` : ''}
-      ${trial.status === 'enrolled' || joined ? `
+      ${trial.status === 'enrolled' ? `
       <div class="detail-row">
         <span class="detail-label">入会状況</span>
         <span class="detail-value"><span class="badge badge-enrolled">入会済み</span></span>
+      </div>` : ''}
+      ${trial.status !== 'enrolled' && trial.linked_application_id ? `
+      <div class="detail-row">
+        <span class="detail-label">入会状況</span>
+        <span class="detail-value"><span class="badge badge-info">入会申請紐付け中</span></span>
       </div>` : ''}
       <div class="detail-row">
         <span class="detail-label"><span class="material-icons" style="font-size:16px;vertical-align:middle">person_pin</span> 担当者</span>
@@ -678,11 +684,19 @@ export async function toggleTrialChecklistItem(trialId, itemKey) {
 export async function updateTrialStatus(id, newStatus) {
   const statusLabel = TRIAL_STATUS_LABELS[newStatus] || newStatus;
 
+  const trial = allTrials.find(t => t.id === id);
+  const oldStatus = trial?.status;
+
   const updateData = { status: newStatus };
   if (newStatus === 'approved' || newStatus === 'rejected' || newStatus === 'enrolled') {
     updateData.processed_at = new Date().toISOString();
     const { data: { session } } = await supabase.auth.getSession();
     updateData.processed_by = session?.user?.email || '';
+  }
+
+  // enrolled から戻す場合は紐付けもクリア
+  if (oldStatus === 'enrolled' && newStatus !== 'enrolled') {
+    updateData.linked_application_id = null;
   }
 
   const { error } = await supabase
