@@ -238,6 +238,13 @@ body {
   max-width: 1100px;
 }
 
+#shop-orders-screen.main-content,
+#shop-products-screen.main-content,
+#shop-inventory-screen.main-content,
+#shop-customers-screen.main-content {
+  max-width: 100%;
+}
+
 /* ===== Section Header ===== */
 .section-header {
   display: flex;
