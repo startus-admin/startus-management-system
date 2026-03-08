@@ -8,6 +8,7 @@ import { loadMemberAttendance } from './attendance-view.js';
 
 let allMembers = [];
 let filteredMembers = [];
+let selectedIds = new Set();
 
 // フィルタ・検索の状態
 let searchQuery = '';
@@ -147,6 +148,7 @@ export function resetMemberFilters() {
 
 const MEMBER_GRID_HEADER = `
   <div class="member-grid-header">
+    <span class="grid-cell-cb"><input type="checkbox" id="member-select-all" onchange="window.memberApp.toggleSelectAll(this.checked)"></span>
     <span>氏名</span>
     <span>教室</span>
     <span>学年</span>
@@ -163,9 +165,13 @@ function buildMemberGridRow(m) {
   const classBadges = (m.classes || []).map(c =>
     `<span class="badge badge-class">${escapeHtml(c)}</span>`
   ).join('');
+  const checked = selectedIds.has(m.id) ? 'checked' : '';
 
   return `
-    <div class="list-item" data-id="${m.id}" onclick="window.memberApp.showDetail('${m.id}')">
+    <div class="list-item ${checked ? 'selected' : ''}" data-id="${m.id}" onclick="window.memberApp.showDetail('${m.id}')">
+      <div class="grid-cell grid-cell-cb" onclick="event.stopPropagation()">
+        <input type="checkbox" class="member-row-cb" data-id="${m.id}" ${checked} onchange="window.memberApp.toggleSelectOne('${m.id}', this.checked)">
+      </div>
       <div class="grid-cell grid-cell-name">
         <strong>${escapeHtml(m.name)}</strong>
       </div>
@@ -202,7 +208,14 @@ function renderMemberList() {
     return;
   }
 
+  // フィルタ変更時、存在しないIDを除外
+  const currentIds = new Set(filteredMembers.map(m => m.id));
+  for (const id of selectedIds) {
+    if (!currentIds.has(id)) selectedIds.delete(id);
+  }
+
   container.innerHTML = MEMBER_GRID_HEADER + filteredMembers.map(buildMemberGridRow).join('');
+  renderBulkBar();
 }
 
 function getTypeClass(type) {
@@ -673,4 +686,233 @@ export function initTypeFilter() {
       setFilters({ member_type: checked });
     });
   });
+}
+
+// --- 一括操作 ---
+
+export function toggleSelectAll(checked) {
+  if (checked) {
+    filteredMembers.forEach(m => selectedIds.add(m.id));
+  } else {
+    selectedIds.clear();
+  }
+  // チェックボックスUIを更新
+  document.querySelectorAll('.member-row-cb').forEach(cb => {
+    cb.checked = checked;
+    cb.closest('.list-item').classList.toggle('selected', checked);
+  });
+  renderBulkBar();
+}
+
+export function toggleSelectOne(id, checked) {
+  if (checked) {
+    selectedIds.add(id);
+  } else {
+    selectedIds.delete(id);
+  }
+  const row = document.querySelector(`.list-item[data-id="${id}"]`);
+  if (row) row.classList.toggle('selected', checked);
+  // 全選択チェックボックスの状態を同期
+  const selectAll = document.getElementById('member-select-all');
+  if (selectAll) {
+    selectAll.checked = filteredMembers.length > 0 && filteredMembers.every(m => selectedIds.has(m.id));
+  }
+  renderBulkBar();
+}
+
+export function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll('.member-row-cb').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.list-item').classList.remove('selected');
+  });
+  const selectAll = document.getElementById('member-select-all');
+  if (selectAll) selectAll.checked = false;
+  renderBulkBar();
+}
+
+function renderBulkBar() {
+  let bar = document.getElementById('member-bulk-bar');
+  if (selectedIds.size === 0) {
+    if (bar) bar.remove();
+    return;
+  }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'member-bulk-bar';
+    bar.className = 'bulk-bar';
+    const container = document.getElementById('member-list');
+    container.parentElement.insertBefore(bar, container);
+  }
+  const classOptions = getActiveClassrooms().map(c =>
+    `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`
+  ).join('');
+  bar.innerHTML = `
+    <div class="bulk-bar-left">
+      <button class="btn-bulk-clear" onclick="window.memberApp.clearSelection()">
+        <span class="material-icons">close</span>
+      </button>
+      <span>${selectedIds.size}件選択中</span>
+    </div>
+    <div class="bulk-bar-right">
+      <select id="bulk-status-select" class="btn-sm" style="background:transparent;color:white;border-color:rgba(255,255,255,0.3)">
+        <option value="">ステータス変更</option>
+        <option value="在籍">→ 在籍</option>
+        <option value="休会">→ 休会</option>
+        <option value="退会">→ 退会</option>
+      </select>
+      <button class="btn btn-sm" onclick="window.memberApp.executeBulkStatus()" style="background:var(--primary-color);color:white;border:none">
+        <span class="material-icons" style="font-size:16px">sync</span>適用
+      </button>
+      <select id="bulk-class-select" class="btn-sm" style="background:transparent;color:white;border-color:rgba(255,255,255,0.3);margin-left:8px">
+        <option value="">教室追加</option>
+        ${classOptions}
+      </select>
+      <button class="btn btn-sm" onclick="window.memberApp.executeBulkAddClass()" style="background:var(--primary-color);color:white;border:none">
+        <span class="material-icons" style="font-size:16px">add</span>追加
+      </button>
+      <button class="btn btn-sm" onclick="window.memberApp.confirmBulkDelete()" style="background:var(--danger-color);color:white;border:none;margin-left:8px">
+        <span class="material-icons" style="font-size:16px">delete</span>一括削除
+      </button>
+    </div>`;
+}
+
+export async function executeBulkStatus() {
+  const select = document.getElementById('bulk-status-select');
+  const newStatus = select?.value;
+  if (!newStatus) {
+    showToast('ステータスを選択してください', 'error');
+    return;
+  }
+  const ids = [...selectedIds];
+  const names = ids.map(id => allMembers.find(m => m.id === id)?.name || '').filter(Boolean);
+
+  const content = `
+    <p>${names.length}名のステータスを「${escapeHtml(newStatus)}」に変更しますか？</p>
+    <div style="max-height:150px;overflow-y:auto;margin:12px 0;padding:8px;background:var(--gray-50);border-radius:8px;font-size:0.9rem">
+      ${names.map(n => `<div>${escapeHtml(n)}</div>`).join('')}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="window.memberApp.doBulkStatus('${escapeHtml(newStatus)}')">
+        <span class="material-icons">check</span>変更する
+      </button>
+    </div>`;
+  openModal('一括ステータス変更', content);
+}
+
+export async function doBulkStatus(newStatus) {
+  const ids = [...selectedIds];
+  // 変更履歴を記録
+  for (const id of ids) {
+    const m = allMembers.find(mem => mem.id === id);
+    if (m && m.status !== newStatus) {
+      logActivity(id, 'update', 'status', m.status, newStatus);
+    }
+  }
+  const { error } = await supabase
+    .from('members')
+    .update({ status: newStatus })
+    .in('id', ids);
+  if (error) {
+    console.error('一括ステータス変更エラー:', error);
+    showToast('一括変更に失敗しました', 'error');
+    return;
+  }
+  closeModal();
+  selectedIds.clear();
+  showToast(`${ids.length}名のステータスを変更しました`, 'success');
+  await loadMembers();
+}
+
+export async function executeBulkAddClass() {
+  const select = document.getElementById('bulk-class-select');
+  const className = select?.value;
+  if (!className) {
+    showToast('教室を選択してください', 'error');
+    return;
+  }
+  const ids = [...selectedIds];
+  const targets = ids.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  const toUpdate = targets.filter(m => !(m.classes || []).includes(className));
+
+  if (toUpdate.length === 0) {
+    showToast('選択した全員が既にその教室に所属しています', 'info');
+    return;
+  }
+
+  const content = `
+    <p>${toUpdate.length}名に「${escapeHtml(className)}」を追加しますか？</p>
+    <div style="max-height:150px;overflow-y:auto;margin:12px 0;padding:8px;background:var(--gray-50);border-radius:8px;font-size:0.9rem">
+      ${toUpdate.map(m => `<div>${escapeHtml(m.name)}</div>`).join('')}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="window.memberApp.doBulkAddClass('${escapeHtml(className)}')">
+        <span class="material-icons">check</span>追加する
+      </button>
+    </div>`;
+  openModal('一括教室追加', content);
+}
+
+export async function doBulkAddClass(className) {
+  const ids = [...selectedIds];
+  const targets = ids.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  let count = 0;
+  for (const m of targets) {
+    const current = m.classes || [];
+    if (current.includes(className)) continue;
+    const updated = [...current, className];
+    const { error } = await supabase
+      .from('members')
+      .update({ classes: updated })
+      .eq('id', m.id);
+    if (!error) {
+      logActivity(m.id, 'update', 'classes', current.join(', '), updated.join(', '));
+      count++;
+    }
+  }
+  closeModal();
+  selectedIds.clear();
+  showToast(`${count}名に教室を追加しました`, 'success');
+  await loadMembers();
+}
+
+export function confirmBulkDelete() {
+  const ids = [...selectedIds];
+  const names = ids.map(id => allMembers.find(m => m.id === id)?.name || '').filter(Boolean);
+  const content = `
+    <p><strong>${names.length}名</strong>を削除しますか？</p>
+    <p class="text-warning">この操作は元に戻せません</p>
+    <div style="max-height:150px;overflow-y:auto;margin:12px 0;padding:8px;background:var(--gray-50);border-radius:8px;font-size:0.9rem">
+      ${names.map(n => `<div>${escapeHtml(n)}</div>`).join('')}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+      <button class="btn btn-danger" onclick="window.memberApp.doBulkDelete()">
+        <span class="material-icons">delete</span>削除する
+      </button>
+    </div>`;
+  openModal('一括削除', content);
+}
+
+export async function doBulkDelete() {
+  const ids = [...selectedIds];
+  for (const id of ids) {
+    const m = allMembers.find(mem => mem.id === id);
+    if (m) logActivity(id, 'delete', 'name', m.name, '');
+  }
+  const { error } = await supabase
+    .from('members')
+    .delete()
+    .in('id', ids);
+  if (error) {
+    console.error('一括削除エラー:', error);
+    showToast('一括削除に失敗しました', 'error');
+    return;
+  }
+  closeModal();
+  selectedIds.clear();
+  showToast(`${ids.length}名を削除しました`, 'success');
+  await loadMembers();
 }

@@ -4536,7 +4536,7 @@ body {
 #member-list .member-grid-header,
 #member-list .list-item {
   display: grid;
-  grid-template-columns: minmax(140px, 1.5fr) minmax(100px, 1.2fr) 60px 70px 70px 80px minmax(120px, 1fr) 32px;
+  grid-template-columns: 32px minmax(140px, 1.5fr) minmax(100px, 1.2fr) 60px 70px 70px 80px minmax(120px, 1fr) 32px;
   align-items: center;
   gap: 0 8px;
   padding: 10px 16px;
@@ -4560,6 +4560,10 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.grid-cell-cb { display: flex; align-items: center; justify-content: center; }
+.grid-cell-cb input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color); }
+#member-list .list-item.selected { background: var(--primary-lighter); }
 
 #member-list .list-item {
   border-radius: 0;
@@ -4655,6 +4659,13 @@ body {
     margin-bottom: 8px;
     padding: 12px 14px;
   }
+
+  #member-list .list-item .grid-cell-cb {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  #member-list .list-item { position: relative; }
 
   #app-list .list-item:hover,
   #trial-list .list-item:hover,

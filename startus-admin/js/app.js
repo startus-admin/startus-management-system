@@ -3,7 +3,11 @@ import { loadAppSettings, loadStaffCalendars, getAppName, renderAppSettings } fr
 import {
   loadMembers, showDetail, openAddForm, openEditForm,
   confirmDelete, deleteMember, initSortSelect, initSearchInput,
-  initStatusFilter, initTypeFilter, resetMemberFilters
+  initStatusFilter, initTypeFilter, resetMemberFilters,
+  toggleSelectAll, toggleSelectOne, clearSelection,
+  executeBulkStatus, doBulkStatus,
+  executeBulkAddClass, doBulkAddClass,
+  confirmBulkDelete, doBulkDelete
 } from './members.js';
 import { openImportModal, removeImportRow, executeImport } from './import.js';
 import { exportCSV, exportApplicationsCSV, exportTrialsCSV } from './export.js';
@@ -471,6 +475,15 @@ window.memberApp = {
   toggleStaffFilterPanel,
   resetStaffFilters,
   resetMemberFilters,
+  toggleSelectAll,
+  toggleSelectOne,
+  clearSelection,
+  executeBulkStatus,
+  doBulkStatus,
+  executeBulkAddClass,
+  doBulkAddClass,
+  confirmBulkDelete,
+  doBulkDelete,
   navigateCalendarDay,
   goToCalendarToday,
   refreshCalendar,
