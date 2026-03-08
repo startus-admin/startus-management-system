@@ -21,6 +21,7 @@ export async function loadMemberAttendance(memberId) {
           id,
           date,
           classroom_id,
+          attendance_group,
           classrooms ( name )
         )
       `)
@@ -60,14 +61,16 @@ export async function loadMemberAttendance(memberId) {
     for (const r of records) {
       const event = r.attendance_events;
       const date = event?.date || '不明';
-      const classroomName = event?.classrooms?.name || '';
+      const classroomLabel = event?.attendance_group
+        ? `[合同] ${event.attendance_group}`
+        : (event?.classrooms?.name || '');
       const statusClass = r.status === 'present' ? 'att-present' : 'att-absent';
       const statusLabel = r.status === 'present' ? '出席' : '欠席';
 
       html += `
         <div class="attendance-history-item">
           <span class="att-date">${formatDateShort(date)}</span>
-          ${classroomName ? `<span class="badge badge-class att-classroom">${escapeHtml(classroomName)}</span>` : ''}
+          ${classroomLabel ? `<span class="badge badge-class att-classroom">${escapeHtml(classroomLabel)}</span>` : ''}
           <span class="att-badge ${statusClass}">${statusLabel}</span>
         </div>`;
     }

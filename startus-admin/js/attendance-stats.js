@@ -23,7 +23,7 @@ export async function initAttendanceStats() {
   // 教室一覧を取得
   const { data } = await supabase
     .from('classrooms')
-    .select('id, name')
+    .select('id, name, attendance_group')
     .eq('is_active', true)
     .order('display_order')
     .order('name');
@@ -61,10 +61,20 @@ function buildFilters() {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   periodSelect.value = currentMonth;
 
-  // 教室
+  // 教室（グループ対応）
   const classroomSelect = document.getElementById('att-stats-classroom');
-  classroomSelect.innerHTML = '<option value="">全教室</option>' +
-    classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+  let classroomOpts = '<option value="">全教室</option>';
+  if (groups.length > 0) {
+    classroomOpts += '<optgroup label="合同グループ">';
+    for (const g of groups) {
+      classroomOpts += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+    }
+    classroomOpts += '</optgroup><optgroup label="教室">';
+  }
+  classroomOpts += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (groups.length > 0) classroomOpts += '</optgroup>';
+  classroomSelect.innerHTML = classroomOpts;
 }
 
 // ============================================
@@ -78,10 +88,12 @@ async function loadAttendanceStats() {
     // イベントを取得
     let eventsQuery = supabase
       .from('attendance_events')
-      .select('id, date, classroom_id, classrooms(name)')
+      .select('id, date, classroom_id, attendance_group, classrooms(name)')
       .order('date', { ascending: false });
 
-    if (classroomId) {
+    if (classroomId && classroomId.startsWith('group:')) {
+      eventsQuery = eventsQuery.eq('attendance_group', classroomId.replace('group:', ''));
+    } else if (classroomId) {
       eventsQuery = eventsQuery.eq('classroom_id', classroomId);
     }
 

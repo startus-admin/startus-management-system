@@ -433,6 +433,13 @@ function openClassroomForm(classroom) {
             <label>振替グループ</label>
             <input type="text" name="furikae_group" value="${escapeHtml(c.furikae_group || '')}" placeholder="例: dance">
           </div>
+          <div class="form-group">
+            <label>出欠グループ</label>
+            <input type="text" name="attendance_group" value="${escapeHtml(c.attendance_group || '')}" placeholder="例: 中村マラソン合同">
+            <small style="color:var(--gray-500);font-size:11px;margin-top:2px;display:block">
+              複数の教室に同じ名前を設定すると、出欠管理で一画面にまとめて表示されます
+            </small>
+          </div>
         </div>
       </fieldset>
 
@@ -496,6 +503,7 @@ async function saveClassroom(form, id) {
     fee2: fd.get('fee2') ? parseInt(fd.get('fee2'), 10) : null,
     calendar_tag: fd.get('calendar_tag').trim(),
     furikae_group: fd.get('furikae_group').trim(),
+    attendance_group: fd.get('attendance_group').trim(),
     class_code: fd.get('class_code').trim(),
     memo: fd.get('memo').trim(),
   };

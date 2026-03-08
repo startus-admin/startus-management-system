@@ -51,8 +51,18 @@ function buildFilters() {
   periodSelect.value = currentMonth;
 
   const classroomSelect = document.getElementById('att-mgmt-classroom');
-  classroomSelect.innerHTML = '<option value="">全教室</option>' +
-    classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+  let classroomOpts = '<option value="">全教室</option>';
+  if (groups.length > 0) {
+    classroomOpts += '<optgroup label="合同グループ">';
+    for (const g of groups) {
+      classroomOpts += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+    }
+    classroomOpts += '</optgroup><optgroup label="教室">';
+  }
+  classroomOpts += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (groups.length > 0) classroomOpts += '</optgroup>';
+  classroomSelect.innerHTML = classroomOpts;
 }
 
 // ============================================
@@ -66,10 +76,12 @@ export async function renderAttendanceList() {
   try {
     let query = supabase
       .from('attendance_events')
-      .select('id, date, classroom_id, note, classrooms(name)')
+      .select('id, date, classroom_id, attendance_group, note, classrooms(name)')
       .order('date', { ascending: false });
 
-    if (classroomId) {
+    if (classroomId && classroomId.startsWith('group:')) {
+      query = query.eq('attendance_group', classroomId.replace('group:', ''));
+    } else if (classroomId) {
       query = query.eq('classroom_id', classroomId);
     }
 
@@ -111,6 +123,7 @@ export async function renderAttendanceList() {
     allEvents = events.map(e => ({
       ...e,
       classroomName: e.classrooms?.name || '',
+      displayLabel: e.attendance_group ? `[合同] ${e.attendance_group}` : (e.classrooms?.name || ''),
       present: countMap[e.id]?.present || 0,
       absent: countMap[e.id]?.absent || 0
     }));
@@ -132,7 +145,7 @@ export async function renderAttendanceList() {
       html += `
         <div class="list-item att-event-row" onclick="window.memberApp.openAttendanceModal('${ev.id}')">
           <span class="att-event-date">${dateLabel}</span>
-          <span>${escapeHtml(ev.classroomName) || '-'}</span>
+          <span>${escapeHtml(ev.displayLabel) || '-'}</span>
           <span class="att-count-badge">
             <span class="att-count-present">${ev.present}</span>/<span class="att-count-absent">${ev.absent}</span>
             <span style="color:var(--gray-400);font-size:12px">(${total}名)</span>
@@ -161,9 +174,18 @@ export async function renderAttendanceList() {
 // ============================================
 export function openCreateEventModal() {
   const today = new Date().toISOString().split('T')[0];
-  const classroomOptions = classrooms
-    .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
-    .join('');
+  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+
+  let selectOptions = '<option value="">選択してください</option>';
+  if (groups.length > 0) {
+    selectOptions += '<optgroup label="合同グループ">';
+    for (const g of groups) {
+      selectOptions += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+    }
+    selectOptions += '</optgroup><optgroup label="単独教室">';
+  }
+  selectOptions += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (groups.length > 0) selectOptions += '</optgroup>';
 
   const content = `
     <div class="form-group">
@@ -171,10 +193,9 @@ export function openCreateEventModal() {
       <input type="date" id="new-event-date" value="${today}" class="form-control">
     </div>
     <div class="form-group">
-      <label>教室</label>
+      <label>教室 / 合同グループ</label>
       <select id="new-event-classroom" class="form-control">
-        <option value="">選択してください</option>
-        ${classroomOptions}
+        ${selectOptions}
       </select>
     </div>
     <div class="form-group">
@@ -198,21 +219,36 @@ export function openCreateEventModal() {
 // ============================================
 async function createEvent() {
   const date = document.getElementById('new-event-date').value;
-  const classroomId = document.getElementById('new-event-classroom').value;
+  const selection = document.getElementById('new-event-classroom').value;
   const note = document.getElementById('new-event-note').value.trim();
 
   if (!date) {
     showToast('日付を入力してください', 'error');
     return null;
   }
-  if (!classroomId) {
+  if (!selection) {
     showToast('教室を選択してください', 'error');
     return null;
   }
 
+  let classroomId;
+  let attendanceGroup = '';
+
+  if (selection.startsWith('group:')) {
+    attendanceGroup = selection.replace('group:', '');
+    const groupClassrooms = classrooms.filter(c => c.attendance_group === attendanceGroup);
+    if (groupClassrooms.length === 0) {
+      showToast('グループに教室が見つかりません', 'error');
+      return null;
+    }
+    classroomId = groupClassrooms[0].id;
+  } else {
+    classroomId = selection;
+  }
+
   const { data, error } = await supabase
     .from('attendance_events')
-    .insert({ date, classroom_id: classroomId, note })
+    .insert({ date, classroom_id: classroomId, attendance_group: attendanceGroup, note })
     .select()
     .single();
 
@@ -248,7 +284,7 @@ export async function openAttendanceModal(eventId) {
   // イベント情報を取得
   const { data: event, error: evErr } = await supabase
     .from('attendance_events')
-    .select('id, date, classroom_id, note, classrooms(name)')
+    .select('id, date, classroom_id, attendance_group, note, classrooms(name)')
     .eq('id', eventId)
     .single();
 
@@ -257,18 +293,39 @@ export async function openAttendanceModal(eventId) {
     return;
   }
 
-  const classroomName = event.classrooms?.name || '';
+  // 対象教室名のリストとタイトルを決定
+  let targetClassroomNames = [];
+  let displayTitle = '';
 
-  // 教室に所属する会員を取得
+  if (event.attendance_group) {
+    const groupClassrooms = classrooms.filter(c => c.attendance_group === event.attendance_group);
+    targetClassroomNames = groupClassrooms.map(c => c.name);
+    displayTitle = `[合同] ${event.attendance_group}`;
+  } else {
+    const classroomName = event.classrooms?.name || '';
+    targetClassroomNames = classroomName ? [classroomName] : [];
+    displayTitle = classroomName;
+  }
+
+  // 教室に所属する会員を取得（複数教室対応・重複排除）
   let members = [];
-  if (classroomName) {
-    const { data } = await supabase
-      .from('members')
-      .select('id, name, classes, status')
-      .contains('classes', [classroomName])
-      .eq('status', '在籍')
-      .order('name');
-    members = data || [];
+  if (targetClassroomNames.length > 0) {
+    const results = await Promise.all(
+      targetClassroomNames.map(name =>
+        supabase
+          .from('members')
+          .select('id, name, classes, status')
+          .contains('classes', [name])
+          .eq('status', '在籍')
+      )
+    );
+    const memberMap = {};
+    for (const { data } of results) {
+      for (const m of (data || [])) {
+        memberMap[m.id] = m;
+      }
+    }
+    members = Object.values(memberMap).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   }
 
   // 既存の出欠レコードを取得
@@ -321,7 +378,7 @@ export async function openAttendanceModal(eventId) {
     </div>` : ''}`;
 
   const dateLabel = formatDateShort(event.date);
-  openModal(`出欠入力 - ${dateLabel} ${classroomName}`, content);
+  openModal(`出欠入力 - ${dateLabel} ${displayTitle}`, content);
 }
 
 // ============================================
@@ -385,9 +442,21 @@ export async function editEvent(eventId) {
   const ev = allEvents.find(e => e.id === eventId);
   if (!ev) return;
 
-  const classroomOptions = classrooms
-    .map(c => `<option value="${c.id}" ${c.id === ev.classroom_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`)
-    .join('');
+  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+  const currentValue = ev.attendance_group ? `group:${ev.attendance_group}` : ev.classroom_id;
+
+  let selectOptions = '<option value="">選択してください</option>';
+  if (groups.length > 0) {
+    selectOptions += '<optgroup label="合同グループ">';
+    for (const g of groups) {
+      selectOptions += `<option value="group:${escapeHtml(g)}" ${currentValue === `group:${g}` ? 'selected' : ''}>[合同] ${escapeHtml(g)}</option>`;
+    }
+    selectOptions += '</optgroup><optgroup label="単独教室">';
+  }
+  selectOptions += classrooms.map(c =>
+    `<option value="${c.id}" ${!ev.attendance_group && c.id === ev.classroom_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+  ).join('');
+  if (groups.length > 0) selectOptions += '</optgroup>';
 
   const content = `
     <div class="form-group">
@@ -395,10 +464,9 @@ export async function editEvent(eventId) {
       <input type="date" id="edit-event-date" value="${ev.date}" class="form-control">
     </div>
     <div class="form-group">
-      <label>教室</label>
+      <label>教室 / 合同グループ</label>
       <select id="edit-event-classroom" class="form-control">
-        <option value="">選択してください</option>
-        ${classroomOptions}
+        ${selectOptions}
       </select>
     </div>
     <div class="form-group">
@@ -416,17 +484,32 @@ export async function editEvent(eventId) {
 
 export async function saveEventEdit(eventId) {
   const date = document.getElementById('edit-event-date').value;
-  const classroomId = document.getElementById('edit-event-classroom').value;
+  const selection = document.getElementById('edit-event-classroom').value;
   const note = document.getElementById('edit-event-note').value.trim();
 
-  if (!date || !classroomId) {
+  if (!date || !selection) {
     showToast('日付と教室は必須です', 'error');
     return;
   }
 
+  let classroomId;
+  let attendanceGroup = '';
+
+  if (selection.startsWith('group:')) {
+    attendanceGroup = selection.replace('group:', '');
+    const groupClassrooms = classrooms.filter(c => c.attendance_group === attendanceGroup);
+    if (groupClassrooms.length === 0) {
+      showToast('グループに教室が見つかりません', 'error');
+      return;
+    }
+    classroomId = groupClassrooms[0].id;
+  } else {
+    classroomId = selection;
+  }
+
   const { error } = await supabase
     .from('attendance_events')
-    .update({ date, classroom_id: classroomId, note })
+    .update({ date, classroom_id: classroomId, attendance_group: attendanceGroup, note })
     .eq('id', eventId);
 
   if (error) {
@@ -449,7 +532,7 @@ export function confirmDeleteEvent(eventId) {
 
   const dateLabel = formatDateShort(ev.date);
   const content = `
-    <p>${dateLabel} ${escapeHtml(ev.classroomName)} のイベントを削除しますか？</p>
+    <p>${dateLabel} ${escapeHtml(ev.displayLabel || ev.classroomName)} のイベントを削除しますか？</p>
     <p style="color:var(--danger-color);font-size:13px">出欠記録もすべて削除されます。</p>
     <div class="modal-actions" style="margin-top:16px">
       <button class="btn btn-danger" onclick="window.memberApp.deleteEvent('${eventId}')">削除</button>
