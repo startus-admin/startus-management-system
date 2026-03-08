@@ -76,6 +76,11 @@ import {
   loadShopCustomers, showCustomerDetail, initShopCustomerSearch
 } from './shop-customers.js';
 import { initAttendanceStats } from './attendance-stats.js';
+import {
+  initAttendance, openCreateEventModal, createEventAndOpen, createEventOnly,
+  openAttendanceModal, toggleAttendance, bulkSetAttendance, saveAttendance,
+  editEvent, saveEventEdit, confirmDeleteEvent, deleteEvent
+} from './attendance.js';
 
 // --- Toast ---
 
@@ -256,6 +261,7 @@ async function showApp(email) {
     if (tabName === 'sm') initScheduleManager();
     if (tabName === 'master') { renderClassroomScreen(); }
     if (tabName === 'settings') { renderAppSettings(); }
+    if (tabName === 'attendance') initAttendance();
     if (tabName === 'attendance-stats') initAttendanceStats();
     if (tabName === 'shop-orders') loadShopOrders();
     if (tabName === 'shop-products') loadShopProducts();
@@ -467,6 +473,19 @@ window.memberApp = {
   loadShopInventory,
   loadShopCustomers,
   showCustomerDetail,
+  // Attendance
+  initAttendance,
+  openCreateEventModal,
+  createEventAndOpen,
+  createEventOnly,
+  openAttendanceModal,
+  toggleAttendance,
+  bulkSetAttendance,
+  saveAttendance,
+  editEvent,
+  saveEventEdit,
+  confirmDeleteEvent,
+  deleteEvent,
 };
 
 // --- キーボードショートカット ---

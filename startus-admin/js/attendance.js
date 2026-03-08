@@ -1,0 +1,490 @@
+// ============================================
+// 出欠管理モジュール
+// ============================================
+// イベント作成・出欠記録の CRUD を行う
+
+import { supabase } from './supabase.js';
+import { escapeHtml } from './utils.js';
+import { showToast, openModal, closeModal, setModalWide } from './app.js';
+import { getActiveClassrooms } from './classroom.js';
+
+let initialized = false;
+let classrooms = [];
+let allEvents = [];
+
+// ============================================
+// 初期化
+// ============================================
+export async function initAttendance() {
+  if (initialized) {
+    await renderAttendanceList();
+    return;
+  }
+  initialized = true;
+
+  classrooms = getActiveClassrooms();
+
+  buildFilters();
+
+  document.getElementById('att-mgmt-period').addEventListener('change', renderAttendanceList);
+  document.getElementById('att-mgmt-classroom').addEventListener('change', renderAttendanceList);
+
+  await renderAttendanceList();
+}
+
+// ============================================
+// フィルタ構築
+// ============================================
+function buildFilters() {
+  const periodSelect = document.getElementById('att-mgmt-period');
+  const now = new Date();
+  let opts = '<option value="all">全期間</option>';
+
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+    opts += `<option value="${val}">${label}</option>`;
+  }
+  periodSelect.innerHTML = opts;
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  periodSelect.value = currentMonth;
+
+  const classroomSelect = document.getElementById('att-mgmt-classroom');
+  classroomSelect.innerHTML = '<option value="">全教室</option>' +
+    classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}
+
+// ============================================
+// イベント一覧を読み込み＆表示
+// ============================================
+export async function renderAttendanceList() {
+  const period = document.getElementById('att-mgmt-period').value;
+  const classroomId = document.getElementById('att-mgmt-classroom').value;
+  const listEl = document.getElementById('att-event-list');
+
+  try {
+    let query = supabase
+      .from('attendance_events')
+      .select('id, date, classroom_id, note, classrooms(name)')
+      .order('date', { ascending: false });
+
+    if (classroomId) {
+      query = query.eq('classroom_id', classroomId);
+    }
+
+    if (period && period !== 'all') {
+      const [year, month] = period.split('-').map(Number);
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = new Date(year, month, 0);
+      const endStr = `${year}-${String(month).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+      query = query.gte('date', startDate).lte('date', endStr);
+    }
+
+    const { data: events, error } = await query;
+    if (error) throw error;
+
+    if (!events || events.length === 0) {
+      document.getElementById('att-event-count-text').textContent = '0件';
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <span class="material-icons empty-icon">event_busy</span>
+          <p>出欠データがありません</p>
+        </div>`;
+      return;
+    }
+
+    // 出欠レコード数を集計
+    const eventIds = events.map(e => e.id);
+    const { data: records } = await supabase
+      .from('attendance_records')
+      .select('event_id, status')
+      .in('event_id', eventIds);
+
+    const countMap = {};
+    for (const r of (records || [])) {
+      if (!countMap[r.event_id]) countMap[r.event_id] = { present: 0, absent: 0 };
+      if (r.status === 'present') countMap[r.event_id].present++;
+      else countMap[r.event_id].absent++;
+    }
+
+    allEvents = events.map(e => ({
+      ...e,
+      classroomName: e.classrooms?.name || '',
+      present: countMap[e.id]?.present || 0,
+      absent: countMap[e.id]?.absent || 0
+    }));
+
+    document.getElementById('att-event-count-text').textContent = `${allEvents.length}件`;
+
+    let html = `
+      <div class="att-event-grid-header">
+        <span>日付</span>
+        <span>教室</span>
+        <span>出欠</span>
+        <span>メモ</span>
+        <span>操作</span>
+      </div>`;
+
+    for (const ev of allEvents) {
+      const dateLabel = formatDateShort(ev.date);
+      const total = ev.present + ev.absent;
+      html += `
+        <div class="list-item att-event-row" onclick="window.memberApp.openAttendanceModal('${ev.id}')">
+          <span class="att-event-date">${dateLabel}</span>
+          <span>${escapeHtml(ev.classroomName) || '-'}</span>
+          <span class="att-count-badge">
+            <span class="att-count-present">${ev.present}</span>/<span class="att-count-absent">${ev.absent}</span>
+            <span style="color:var(--gray-400);font-size:12px">(${total}名)</span>
+          </span>
+          <span style="color:var(--gray-500);font-size:13px">${escapeHtml(ev.note) || '-'}</span>
+          <span class="att-event-actions" onclick="event.stopPropagation()">
+            <button class="btn-icon" title="編集" onclick="window.memberApp.editEvent('${ev.id}')">
+              <span class="material-icons" style="font-size:18px">edit</span>
+            </button>
+            <button class="btn-icon" title="削除" onclick="window.memberApp.confirmDeleteEvent('${ev.id}')">
+              <span class="material-icons" style="font-size:18px;color:var(--danger-color)">delete</span>
+            </button>
+          </span>
+        </div>`;
+    }
+
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.error('出欠イベント読み込みエラー:', err);
+    listEl.innerHTML = '<p style="color:var(--danger-color);padding:20px">読み込みに失敗しました</p>';
+  }
+}
+
+// ============================================
+// イベント作成モーダル
+// ============================================
+export function openCreateEventModal() {
+  const today = new Date().toISOString().split('T')[0];
+  const classroomOptions = classrooms
+    .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+    .join('');
+
+  const content = `
+    <div class="form-group">
+      <label>日付</label>
+      <input type="date" id="new-event-date" value="${today}" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>教室</label>
+      <select id="new-event-classroom" class="form-control">
+        <option value="">選択してください</option>
+        ${classroomOptions}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>メモ</label>
+      <input type="text" id="new-event-note" class="form-control" placeholder="任意">
+    </div>
+    <div class="modal-actions" style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" onclick="window.memberApp.createEventAndOpen()">
+        <span class="material-icons" style="font-size:16px">check</span> 作成して出欠入力
+      </button>
+      <button class="btn btn-secondary" onclick="window.memberApp.createEventOnly()">
+        作成のみ
+      </button>
+    </div>`;
+
+  openModal('イベント作成', content);
+}
+
+// ============================================
+// イベント作成（共通）
+// ============================================
+async function createEvent() {
+  const date = document.getElementById('new-event-date').value;
+  const classroomId = document.getElementById('new-event-classroom').value;
+  const note = document.getElementById('new-event-note').value.trim();
+
+  if (!date) {
+    showToast('日付を入力してください', 'error');
+    return null;
+  }
+  if (!classroomId) {
+    showToast('教室を選択してください', 'error');
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('attendance_events')
+    .insert({ date, classroom_id: classroomId, note })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('イベント作成エラー:', error);
+    showToast('イベントの作成に失敗しました', 'error');
+    return null;
+  }
+
+  showToast('イベントを作成しました', 'success');
+  return data;
+}
+
+export async function createEventAndOpen() {
+  const ev = await createEvent();
+  if (!ev) return;
+  closeModal();
+  await renderAttendanceList();
+  await openAttendanceModal(ev.id);
+}
+
+export async function createEventOnly() {
+  const ev = await createEvent();
+  if (!ev) return;
+  closeModal();
+  await renderAttendanceList();
+}
+
+// ============================================
+// 出欠入力モーダル
+// ============================================
+export async function openAttendanceModal(eventId) {
+  // イベント情報を取得
+  const { data: event, error: evErr } = await supabase
+    .from('attendance_events')
+    .select('id, date, classroom_id, note, classrooms(name)')
+    .eq('id', eventId)
+    .single();
+
+  if (evErr || !event) {
+    showToast('イベントが見つかりません', 'error');
+    return;
+  }
+
+  const classroomName = event.classrooms?.name || '';
+
+  // 教室に所属する会員を取得
+  let members = [];
+  if (classroomName) {
+    const { data } = await supabase
+      .from('members')
+      .select('id, name, classes, status')
+      .contains('classes', [classroomName])
+      .eq('status', '在籍')
+      .order('name');
+    members = data || [];
+  }
+
+  // 既存の出欠レコードを取得
+  const { data: existingRecords } = await supabase
+    .from('attendance_records')
+    .select('person_id, status')
+    .eq('event_id', eventId);
+
+  const recordMap = {};
+  for (const r of (existingRecords || [])) {
+    recordMap[r.person_id] = r.status;
+  }
+
+  // モーダル構築
+  setModalWide(true);
+
+  let memberRows = '';
+  for (const m of members) {
+    const currentStatus = recordMap[m.id] || 'present';
+    memberRows += `
+      <div class="att-member-row" data-member-id="${m.id}">
+        <span class="att-member-name">${escapeHtml(m.name)}</span>
+        <div class="att-toggle">
+          <button type="button" class="att-toggle-btn present ${currentStatus === 'present' ? 'active' : ''}"
+                  onclick="window.memberApp.toggleAttendance(this, 'present')">出席</button>
+          <button type="button" class="att-toggle-btn absent ${currentStatus === 'absent' ? 'active' : ''}"
+                  onclick="window.memberApp.toggleAttendance(this, 'absent')">欠席</button>
+        </div>
+      </div>`;
+  }
+
+  const content = `
+    <div class="att-bulk-actions">
+      <button class="btn btn-sm btn-secondary" onclick="window.memberApp.bulkSetAttendance('present')">
+        <span class="material-icons" style="font-size:16px">done_all</span> 全員出席
+      </button>
+      <button class="btn btn-sm btn-secondary" onclick="window.memberApp.bulkSetAttendance('absent')">
+        <span class="material-icons" style="font-size:16px">remove_done</span> 全員欠席
+      </button>
+      <span style="margin-left:auto;font-size:13px;color:var(--gray-500)">${members.length}名</span>
+    </div>
+    <div class="att-member-list" id="att-member-list">
+      ${memberRows || '<p style="padding:20px;color:var(--gray-400)">この教室に所属する会員がいません</p>'}
+    </div>
+    ${members.length > 0 ? `
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="window.memberApp.saveAttendance('${eventId}')">
+        <span class="material-icons" style="font-size:16px">save</span> 保存
+      </button>
+    </div>` : ''}`;
+
+  const dateLabel = formatDateShort(event.date);
+  openModal(`出欠入力 - ${dateLabel} ${classroomName}`, content);
+}
+
+// ============================================
+// トグル操作
+// ============================================
+export function toggleAttendance(btn, status) {
+  const row = btn.closest('.att-member-row');
+  row.querySelectorAll('.att-toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+export function bulkSetAttendance(status) {
+  const rows = document.querySelectorAll('#att-member-list .att-member-row');
+  rows.forEach(row => {
+    row.querySelectorAll('.att-toggle-btn').forEach(b => b.classList.remove('active'));
+    const target = row.querySelector(`.att-toggle-btn.${status}`);
+    if (target) target.classList.add('active');
+  });
+}
+
+// ============================================
+// 出欠保存
+// ============================================
+export async function saveAttendance(eventId) {
+  const rows = document.querySelectorAll('#att-member-list .att-member-row');
+  const records = [];
+
+  rows.forEach(row => {
+    const memberId = row.dataset.memberId;
+    const presentBtn = row.querySelector('.att-toggle-btn.present');
+    const status = presentBtn && presentBtn.classList.contains('active') ? 'present' : 'absent';
+    records.push({
+      event_id: eventId,
+      person_id: memberId,
+      person_type: 'member',
+      status
+    });
+  });
+
+  if (records.length === 0) return;
+
+  const { error } = await supabase
+    .from('attendance_records')
+    .upsert(records, { onConflict: 'event_id,person_id' });
+
+  if (error) {
+    console.error('出欠保存エラー:', error);
+    showToast('保存に失敗しました', 'error');
+    return;
+  }
+
+  showToast('出欠を保存しました', 'success');
+  closeModal();
+  await renderAttendanceList();
+}
+
+// ============================================
+// イベント編集モーダル
+// ============================================
+export async function editEvent(eventId) {
+  const ev = allEvents.find(e => e.id === eventId);
+  if (!ev) return;
+
+  const classroomOptions = classrooms
+    .map(c => `<option value="${c.id}" ${c.id === ev.classroom_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`)
+    .join('');
+
+  const content = `
+    <div class="form-group">
+      <label>日付</label>
+      <input type="date" id="edit-event-date" value="${ev.date}" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>教室</label>
+      <select id="edit-event-classroom" class="form-control">
+        <option value="">選択してください</option>
+        ${classroomOptions}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>メモ</label>
+      <input type="text" id="edit-event-note" value="${escapeHtml(ev.note || '')}" class="form-control">
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="window.memberApp.saveEventEdit('${eventId}')">
+        <span class="material-icons" style="font-size:16px">save</span> 保存
+      </button>
+    </div>`;
+
+  openModal('イベント編集', content);
+}
+
+export async function saveEventEdit(eventId) {
+  const date = document.getElementById('edit-event-date').value;
+  const classroomId = document.getElementById('edit-event-classroom').value;
+  const note = document.getElementById('edit-event-note').value.trim();
+
+  if (!date || !classroomId) {
+    showToast('日付と教室は必須です', 'error');
+    return;
+  }
+
+  const { error } = await supabase
+    .from('attendance_events')
+    .update({ date, classroom_id: classroomId, note })
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('イベント更新エラー:', error);
+    showToast('更新に失敗しました', 'error');
+    return;
+  }
+
+  showToast('イベントを更新しました', 'success');
+  closeModal();
+  await renderAttendanceList();
+}
+
+// ============================================
+// イベント削除
+// ============================================
+export function confirmDeleteEvent(eventId) {
+  const ev = allEvents.find(e => e.id === eventId);
+  if (!ev) return;
+
+  const dateLabel = formatDateShort(ev.date);
+  const content = `
+    <p>${dateLabel} ${escapeHtml(ev.classroomName)} のイベントを削除しますか？</p>
+    <p style="color:var(--danger-color);font-size:13px">出欠記録もすべて削除されます。</p>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-danger" onclick="window.memberApp.deleteEvent('${eventId}')">削除</button>
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+    </div>`;
+
+  openModal('イベント削除の確認', content);
+}
+
+export async function deleteEvent(eventId) {
+  const { error } = await supabase
+    .from('attendance_events')
+    .delete()
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('イベント削除エラー:', error);
+    showToast('削除に失敗しました', 'error');
+    return;
+  }
+
+  showToast('イベントを削除しました', 'success');
+  closeModal();
+  await renderAttendanceList();
+}
+
+// ============================================
+// ヘルパー
+// ============================================
+function formatDateShort(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  const w = weekdays[d.getDay()];
+  return `${m}/${day}(${w})`;
+}

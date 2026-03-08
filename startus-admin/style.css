@@ -238,7 +238,8 @@ body {
   max-width: 1100px;
 }
 
-#attendance-stats-screen.main-content {
+#attendance-stats-screen.main-content,
+#attendance-screen.main-content {
   max-width: 1100px;
 }
 
@@ -6146,5 +6147,157 @@ body {
   }
   .att-rate-bar {
     width: 50px;
+  }
+}
+
+/* ===== Attendance Management ===== */
+
+.att-mgmt-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.att-event-count {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-bottom: 8px;
+}
+
+/* Event list grid */
+.att-event-grid-header,
+.att-event-row {
+  display: grid;
+  grid-template-columns: 100px minmax(100px, 1.5fr) 120px minmax(80px, 1fr) 80px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+.att-event-grid-header {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  letter-spacing: 0.3px;
+}
+
+.att-event-row {
+  cursor: pointer;
+}
+
+.att-event-date {
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+.att-event-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* Count badges */
+.att-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.att-count-present {
+  color: var(--success-color);
+  font-weight: 600;
+}
+
+.att-count-absent {
+  color: var(--danger-color);
+  font-weight: 600;
+}
+
+/* Attendance modal */
+.att-member-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.att-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.att-member-row:hover {
+  background: var(--gray-50);
+}
+
+.att-member-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.att-toggle {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.att-toggle-btn {
+  padding: 4px 14px;
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  background: white;
+  transition: all 0.15s;
+}
+
+.att-toggle-btn:hover {
+  background: var(--gray-50);
+}
+
+.att-toggle-btn.present.active {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.att-toggle-btn.absent.active {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.att-bulk-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+@media (max-width: 768px) {
+  .att-mgmt-filters {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .att-event-grid-header {
+    display: none;
+  }
+
+  .att-event-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .att-event-row span:nth-child(4) {
+    display: none;
   }
 }

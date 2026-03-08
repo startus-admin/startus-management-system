@@ -111,6 +111,10 @@
           <span class="material-icons">bar_chart</span>
           <span class="sidebar-label">統計</span>
         </a>
+        <a class="sidebar-item" data-tab="attendance" onclick="window.memberApp.switchTab('attendance')" title="出欠管理">
+          <span class="material-icons">fact_check</span>
+          <span class="sidebar-label">出欠管理</span>
+        </a>
         <a class="sidebar-item" data-tab="attendance-stats" onclick="window.memberApp.switchTab('attendance-stats')" title="出欠統計">
           <span class="material-icons">how_to_reg</span>
           <span class="sidebar-label">出欠統計</span>
@@ -520,6 +524,24 @@
       </div>
       <div id="att-stats-summary" class="att-stats-summary"></div>
       <div id="att-stats-table" class="att-stats-table-container"></div>
+    </main>
+
+    <!-- ===== 出欠管理画面 ===== -->
+    <main class="main-content" id="attendance-screen" style="display:none">
+      <div class="section-header">
+        <h2>出欠管理</h2>
+        <div class="section-actions">
+          <button class="btn btn-primary" onclick="window.memberApp.openCreateEventModal()">
+            <span class="material-icons">add</span><span class="btn-text-mobile-hide">イベント作成</span>
+          </button>
+        </div>
+      </div>
+      <div class="att-mgmt-filters">
+        <select id="att-mgmt-period" class="att-stats-select"></select>
+        <select id="att-mgmt-classroom" class="att-stats-select"></select>
+      </div>
+      <div class="att-event-count"><span id="att-event-count-text"></span></div>
+      <div id="att-event-list" class="member-list"></div>
     </main>
 
     <!-- ===== スタッフ管理画面 ===== -->
