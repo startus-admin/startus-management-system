@@ -902,25 +902,23 @@
     <!-- ===== ショッププレビュー画面 ===== -->
     <main class="main-content" id="shop-preview-screen" style="display:none">
       <div class="shop-preview-toolbar">
-        <div class="shop-preview-toolbar-left">
-          <button class="btn btn-secondary btn-sm" onclick="window.memberApp.switchTab('shop-products')">
-            <span class="material-icons">arrow_back</span>商品管理に戻る
-          </button>
-          <span class="shop-preview-badge">プレビューモード</span>
-        </div>
+        <button class="shop-preview-back" onclick="window.memberApp.switchTab('shop-products')" title="商品管理に戻る">
+          <span class="material-icons">arrow_back</span>
+        </button>
+        <span class="shop-preview-badge">プレビュー</span>
         <div class="shop-preview-devices">
           <button class="shop-preview-device-btn active" data-device="desktop" onclick="window.memberApp.setPreviewDevice('desktop')">
-            <span class="material-icons">desktop_windows</span>Desktop
+            <span class="material-icons">desktop_windows</span>
           </button>
           <button class="shop-preview-device-btn" data-device="tablet" onclick="window.memberApp.setPreviewDevice('tablet')">
-            <span class="material-icons">tablet_mac</span>Tablet
+            <span class="material-icons">tablet_mac</span>
           </button>
           <button class="shop-preview-device-btn" data-device="mobile" onclick="window.memberApp.setPreviewDevice('mobile')">
-            <span class="material-icons">phone_iphone</span>Mobile
+            <span class="material-icons">phone_iphone</span>
           </button>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="window.open('https://startus-shop.vercel.app/?preview=admin', '_blank')">
-          <span class="material-icons">open_in_new</span>新しいタブで開く
+        <button class="shop-preview-open" onclick="window.open('https://startus-shop.vercel.app/?preview=admin', '_blank')" title="新しいタブで開く">
+          <span class="material-icons">open_in_new</span>
         </button>
       </div>
       <div class="shop-preview-container" id="shop-preview-container">
