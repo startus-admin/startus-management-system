@@ -6301,3 +6301,122 @@ body {
     display: none;
   }
 }
+
+/* ===== Shop Preview Screen ===== */
+
+.shop-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border-bottom: 1px solid #e5a50a;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shop-preview-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shop-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 14px;
+  background: #78350f;
+  color: #fbbf24;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.shop-preview-devices {
+  display: flex;
+  gap: 4px;
+}
+
+.shop-preview-device-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  border: 1.5px solid rgba(120, 53, 15, 0.3);
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.3);
+  color: #78350f;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.shop-preview-device-btn .material-icons { font-size: 16px; }
+.shop-preview-device-btn:hover { background: rgba(255,255,255,0.5); }
+
+.shop-preview-device-btn.active {
+  background: #78350f;
+  color: #fbbf24;
+  border-color: #78350f;
+}
+
+.shop-preview-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: white;
+  height: calc(100vh - 110px);
+  overflow: hidden;
+}
+
+.shop-preview-container.device-mode {
+  background: #d1d5db;
+  padding: 24px;
+  align-items: center;
+}
+
+.shop-preview-frame {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: white;
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+#shop-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+#shop-preview-screen {
+  display: flex;
+  flex-direction: column;
+}
+
+#shop-preview-screen .shop-preview-container {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .shop-preview-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .shop-preview-toolbar-left {
+    justify-content: space-between;
+  }
+  .shop-preview-devices {
+    justify-content: center;
+  }
+  .shop-preview-container {
+    height: calc(100vh - 160px);
+  }
+}

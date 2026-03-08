@@ -152,6 +152,46 @@ export async function copyToClipboard(text) {
   }
 }
 
+// --- ショッププレビュー ---
+
+const PREVIEW_DEVICE_SIZES = {
+  desktop: { width: '100%', height: '100%' },
+  tablet: { width: '768px', height: '1024px' },
+  mobile: { width: '375px', height: '667px' },
+};
+
+function initShopPreview() {
+  const iframe = document.getElementById('shop-preview-iframe');
+  if (iframe && !iframe.src.includes('startus-shop')) {
+    iframe.src = 'https://startus-shop.vercel.app/?preview=admin&embed=1';
+  }
+}
+
+function setPreviewDevice(device) {
+  const frame = document.getElementById('shop-preview-frame');
+  const container = document.getElementById('shop-preview-container');
+  if (!frame) return;
+
+  document.querySelectorAll('.shop-preview-device-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.device === device);
+  });
+
+  const size = PREVIEW_DEVICE_SIZES[device];
+  if (device === 'desktop') {
+    frame.style.width = '100%';
+    frame.style.height = '100%';
+    frame.style.borderRadius = '0';
+    frame.style.boxShadow = 'none';
+    container.classList.remove('device-mode');
+  } else {
+    frame.style.width = size.width;
+    frame.style.height = size.height;
+    frame.style.borderRadius = '24px';
+    frame.style.boxShadow = '0 25px 50px -12px rgba(0,0,0,0.3)';
+    container.classList.add('device-mode');
+  }
+}
+
 // --- フィルタパネル ---
 
 function toggleFilterPanel() {
@@ -263,6 +303,7 @@ async function showApp(email) {
     if (tabName === 'settings') { renderAppSettings(); }
     if (tabName === 'attendance') initAttendance();
     if (tabName === 'attendance-stats') initAttendanceStats();
+    if (tabName === 'shop-preview') initShopPreview();
     if (tabName === 'shop-orders') loadShopOrders();
     if (tabName === 'shop-products') loadShopProducts();
     if (tabName === 'shop-inventory') loadShopInventory();
@@ -457,6 +498,7 @@ window.memberApp = {
   toggleSidebarCollapse,
   // Shop
   openShopPreview: () => window.open('https://startus-shop.vercel.app/?preview=admin', '_blank'),
+  setPreviewDevice,
   loadShopOrders,
   showOrderDetail,
   confirmOrderPayment,

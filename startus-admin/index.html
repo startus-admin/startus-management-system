@@ -870,8 +870,11 @@
       <div class="section-header">
         <h2>商品管理</h2>
         <div class="section-actions">
-          <button class="btn btn-secondary" onclick="window.memberApp.openShopPreview()" title="顧客向けショップをプレビュー">
+          <button class="btn btn-secondary" onclick="window.memberApp.switchTab('shop-preview')" title="管理画面内でショップをプレビュー">
             <span class="material-icons">visibility</span><span class="btn-text-mobile-hide">プレビュー</span>
+          </button>
+          <button class="btn btn-secondary" onclick="window.open('https://startus-shop.vercel.app/', '_blank')" title="ショップを新しいタブで開く">
+            <span class="material-icons">open_in_new</span><span class="btn-text-mobile-hide">ショップを開く</span>
           </button>
           <button class="btn btn-primary" onclick="window.memberApp.openProductAddForm()">
             <span class="material-icons">add</span><span class="btn-text-mobile-hide">商品追加</span>
@@ -892,6 +895,37 @@
         <div class="empty-state">
           <span class="material-icons empty-icon">inventory_2</span>
           <p>商品データがありません</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== ショッププレビュー画面 ===== -->
+    <main class="main-content" id="shop-preview-screen" style="display:none">
+      <div class="shop-preview-toolbar">
+        <div class="shop-preview-toolbar-left">
+          <button class="btn btn-secondary btn-sm" onclick="window.memberApp.switchTab('shop-products')">
+            <span class="material-icons">arrow_back</span>商品管理に戻る
+          </button>
+          <span class="shop-preview-badge">プレビューモード</span>
+        </div>
+        <div class="shop-preview-devices">
+          <button class="shop-preview-device-btn active" data-device="desktop" onclick="window.memberApp.setPreviewDevice('desktop')">
+            <span class="material-icons">desktop_windows</span>Desktop
+          </button>
+          <button class="shop-preview-device-btn" data-device="tablet" onclick="window.memberApp.setPreviewDevice('tablet')">
+            <span class="material-icons">tablet_mac</span>Tablet
+          </button>
+          <button class="shop-preview-device-btn" data-device="mobile" onclick="window.memberApp.setPreviewDevice('mobile')">
+            <span class="material-icons">phone_iphone</span>Mobile
+          </button>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="window.open('https://startus-shop.vercel.app/?preview=admin', '_blank')">
+          <span class="material-icons">open_in_new</span>新しいタブで開く
+        </button>
+      </div>
+      <div class="shop-preview-container" id="shop-preview-container">
+        <div class="shop-preview-frame" id="shop-preview-frame">
+          <iframe id="shop-preview-iframe" src="" frameborder="0"></iframe>
         </div>
       </div>
     </main>

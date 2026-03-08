@@ -9,7 +9,7 @@ const screens = [
   'attendance-stats-screen', 'attendance-screen',
   'staff-screen', 'calendar-screen', 'schedule-screen',
   'sm-screen', 'master-screen', 'settings-screen',
-  'shop-orders-screen', 'shop-products-screen',
+  'shop-orders-screen', 'shop-products-screen', 'shop-preview-screen',
   'shop-inventory-screen', 'shop-customers-screen'
 ];
 
