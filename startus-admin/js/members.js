@@ -169,8 +169,8 @@ function buildMemberGridRow(m) {
 
   return `
     <div class="list-item ${checked ? 'selected' : ''}" data-id="${m.id}" onclick="window.memberApp.showDetail('${m.id}')">
-      <div class="grid-cell grid-cell-cb" onclick="event.stopPropagation()">
-        <input type="checkbox" class="member-row-cb" data-id="${m.id}" ${checked} onchange="window.memberApp.toggleSelectOne('${m.id}', this.checked)">
+      <div class="grid-cell grid-cell-cb" onclick="event.stopPropagation(); var cb=this.querySelector('input'); cb.checked=!cb.checked; window.memberApp.toggleSelectOne('${m.id}', cb.checked)">
+        <input type="checkbox" class="member-row-cb" data-id="${m.id}" ${checked} onclick="event.stopPropagation()" onchange="event.stopPropagation(); window.memberApp.toggleSelectOne('${m.id}', this.checked)">
       </div>
       <div class="grid-cell grid-cell-name">
         <strong>${escapeHtml(m.name)}</strong>
