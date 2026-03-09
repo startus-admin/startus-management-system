@@ -648,8 +648,8 @@
 
       <!-- ===== リスト画面 ===== -->
       <div id="sm-list-screen">
-        <section class="toolbar">
-          <div class="toolbar-left">
+        <section class="toolbar sm-toolbar">
+          <div class="sm-toolbar-left">
             <select id="sm-list-fy-select" class="fy-select" onchange="window.app.onSmListFYChange()"></select>
             <div class="filter-dropdown" id="sm-filter-dropdown">
               <button class="filter-toggle-btn" id="sm-filter-toggle-btn" onclick="window.app.toggleSmFilterPanel()">
@@ -689,6 +689,8 @@
                 </div>
               </div>
             </div>
+          </div>
+          <div class="sm-toolbar-right">
             <button class="btn btn-primary" onclick="window.app.openSmAddScheduleForm()">
               <span class="material-icons">add</span>追加
             </button>
@@ -744,8 +746,8 @@
 
       <!-- ===== 統計画面 ===== -->
       <div id="sm-stats-screen" style="display:none">
-        <section class="toolbar">
-          <div class="toolbar-left">
+        <section class="toolbar sm-toolbar">
+          <div class="sm-toolbar-left">
             <select id="sm-fy-select" class="fy-select" onchange="window.app.onSmFYChange()"></select>
             <div class="filter-dropdown" id="sm-stats-filter-dropdown">
               <button class="filter-toggle-btn" id="sm-stats-filter-toggle-btn" onclick="window.app.toggleSmStatsFilterPanel()">
@@ -796,8 +798,8 @@
 
       <!-- ===== カレンダー画面 ===== -->
       <div id="sm-calendar-screen" style="display:none">
-        <section class="toolbar">
-          <div class="toolbar-left">
+        <section class="toolbar sm-toolbar">
+          <div class="sm-toolbar-left">
             <select id="sm-calendar-fy-select" class="fy-select" onchange="window.app.onSmCalendarFYChange()"></select>
             <div class="filter-dropdown" id="sm-cal-filter-dropdown">
               <button class="filter-toggle-btn" id="sm-cal-filter-toggle-btn" onclick="window.app.toggleSmCalendarFilterPanel()">
