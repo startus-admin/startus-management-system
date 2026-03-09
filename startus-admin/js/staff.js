@@ -269,6 +269,7 @@ export function showStaffDetail(id) {
       <div class="detail-row"><span class="detail-label">電話番号</span><span class="detail-value">${escapeHtml(s.phone) || '-'}${phoneCopy}</span></div>
       <div class="detail-row"><span class="detail-label">メール</span><span class="detail-value">${escapeHtml(s.email) || '-'}${emailCopy}</span></div>
       <div class="detail-row"><span class="detail-label">担当教室</span><span class="detail-value">${classesDisplay}</span></div>
+      <div class="detail-row"><span class="detail-label">出欠アプリ表示</span><span class="detail-value">${s.show_in_attendance !== false ? '<span class="badge badge-status badge-status-active">表示</span>' : '<span class="badge badge-status badge-status-withdrawn">非表示</span>'}</span></div>
       <div class="detail-row"><span class="detail-label">登録日</span><span class="detail-value">${formatDate(s.joined_date) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">メモ</span><span class="detail-value">${escapeHtml(s.note) || '-'}</span></div>
     </div>
@@ -369,6 +370,13 @@ function openStaffForm(staff) {
         </div>
       </div>
       <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="show_in_attendance" ${s.show_in_attendance !== false ? 'checked' : ''}>
+          出欠アプリに指導者として表示する
+        </label>
+        <p class="form-hint">オフにすると出欠アプリの指導者一覧に表示されません</p>
+      </div>
+      <div class="form-group">
         <label>メモ</label>
         <textarea name="note" rows="3">${escapeHtml(s.note || '')}</textarea>
       </div>
@@ -409,6 +417,7 @@ async function saveStaff(form, id) {
     joined_date: fd.get('joined_date') || null,
     note: fd.get('note') || '',
     calendar_color: fd.get('calendar_color') || '',
+    show_in_attendance: !!fd.get('show_in_attendance'),
   };
 
   // admin権限がある場合のみ is_admin を更新
