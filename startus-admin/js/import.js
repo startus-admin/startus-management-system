@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast, openModal, closeModal } from './app.js';
 import { loadMembers, getAllMembers } from './members.js';
+import { namesToTags } from './class-utils.js';
 
 // ヘッダーマッピング（柔軟判定）
 const HEADER_MAP = {
@@ -246,7 +247,7 @@ export async function executeImport() {
     phone: row.phone || '',
     email: row.email || '',
     classes: row.classes
-      ? row.classes.split(/[,、・]/).map(s => s.trim()).filter(Boolean)
+      ? namesToTags(row.classes.split(/[,、・]/).map(s => s.trim()).filter(Boolean))
       : [],
     grade: row.grade || '',
     disability_info: row.disability_info || '',

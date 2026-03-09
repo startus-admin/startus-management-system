@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
+import { tagToName } from './class-utils.js';
 
 let initialized = false;
 let classrooms = [];
@@ -242,7 +243,7 @@ function renderTable(rows, totalEvents) {
 
   for (const r of rows) {
     const classLabel = r.type === 'staff' ? '<span class="badge badge-staff">スタッフ</span>' :
-      (r.classes.length > 0 ? r.classes.map(c => `<span class="badge badge-class">${escapeHtml(c)}</span>`).join(' ') : '-');
+      (r.classes.length > 0 ? r.classes.map(c => `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`).join(' ') : '-');
 
     html += `
       <tr>

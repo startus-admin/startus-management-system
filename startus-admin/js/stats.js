@@ -1,6 +1,7 @@
 import { getAllMembers } from './members.js';
 import { loadAllFees, getCurrentFiscalYear } from './fees.js';
 import { supabase } from './supabase.js';
+import { tagToName } from './class-utils.js';
 
 const MONTHS = ['04','05','06','07','08','09','10','11','12','01','02','03'];
 
@@ -81,7 +82,7 @@ export async function renderStats() {
     sortedClasses.forEach(([cls, count]) => {
       const pct = active.length > 0 ? Math.round((count / active.length) * 100) : 0;
       html += `<div class="stat-list-item">
-        <span>${cls}</span>
+        <span>${tagToName(cls)}</span>
         <span><strong>${count}</strong>人</span>
       </div>
       <div class="stat-bar"><div class="stat-bar-fill stat-bar-fill-success" style="width:${pct}%"></div></div>`;

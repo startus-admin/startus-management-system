@@ -3,6 +3,7 @@ import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal } from './app.js';
 import { isAdmin } from './auth.js';
 import { getActiveClassrooms } from './classroom.js';
+import { tagToName } from './class-utils.js';
 
 let allStaff = [];
 let filteredStaff = [];
@@ -157,7 +158,7 @@ function buildStaffGridRow(s) {
     ? `<span class="badge badge-status badge-status-withdrawn">${escapeHtml(s.status)}</span>`
     : `<span class="badge badge-status badge-status-active">${escapeHtml(s.status)}</span>`;
   const classBadges = (s.classes || []).map(c =>
-    `<span class="badge badge-class">${escapeHtml(c)}</span>`
+    `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`
   ).join('');
 
   return `
@@ -221,10 +222,10 @@ function updateStaffClassFilter() {
     (s.classes || []).forEach(c => classroomSet.add(c));
   });
 
-  const classNames = [...classroomSet].sort((a, b) => a.localeCompare(b, 'ja'));
-  container.innerHTML = classNames.map(c => {
+  const classTags = [...classroomSet].sort((a, b) => tagToName(a).localeCompare(tagToName(b), 'ja'));
+  container.innerHTML = classTags.map(c => {
     const checked = filters.classes.includes(c) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c)}" ${checked}>${escapeHtml(c)}</label>`;
+    return `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c)}" ${checked}>${escapeHtml(tagToName(c))}</label>`;
   }).join('');
 
   container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -243,7 +244,7 @@ export function showStaffDetail(id) {
   if (!s) return;
 
   const classesDisplay = (s.classes || []).map(c =>
-    `<span class="badge badge-class">${escapeHtml(c)}</span>`
+    `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`
   ).join(' ') || '-';
 
   const photoHtml = s.photo_url
@@ -302,8 +303,9 @@ function openStaffForm(staff) {
   const s = staff || {};
 
   const classroomCheckboxes = getActiveClassrooms().map(c => {
-    const checked = (s.classes || []).includes(c.name) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" name="staff_classroom_cb" value="${escapeHtml(c.name)}" ${checked}>${escapeHtml(c.name)}</label>`;
+    const tag = c.calendar_tag || c.name;
+    const checked = (s.classes || []).includes(tag) ? 'checked' : '';
+    return `<label class="filter-pill"><input type="checkbox" name="staff_classroom_cb" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
   }).join('');
 
   const content = `

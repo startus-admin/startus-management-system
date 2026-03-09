@@ -293,29 +293,30 @@ export async function openAttendanceModal(eventId) {
     return;
   }
 
-  // 対象教室名のリストとタイトルを決定
-  let targetClassroomNames = [];
+  // 対象教室タグのリストとタイトルを決定
+  let targetClassroomTags = [];
   let displayTitle = '';
 
   if (event.attendance_group) {
     const groupClassrooms = classrooms.filter(c => c.attendance_group === event.attendance_group);
-    targetClassroomNames = groupClassrooms.map(c => c.name);
+    targetClassroomTags = groupClassrooms.map(c => c.calendar_tag).filter(Boolean);
     displayTitle = `[合同] ${event.attendance_group}`;
   } else {
-    const classroomName = event.classrooms?.name || '';
-    targetClassroomNames = classroomName ? [classroomName] : [];
-    displayTitle = classroomName;
+    const matched = classrooms.find(c => c.id === event.classroom_id);
+    const tag = matched?.calendar_tag || '';
+    targetClassroomTags = tag ? [tag] : [];
+    displayTitle = event.classrooms?.name || '';
   }
 
   // 教室に所属する会員を取得（複数教室対応・重複排除）
   let members = [];
-  if (targetClassroomNames.length > 0) {
+  if (targetClassroomTags.length > 0) {
     const results = await Promise.all(
-      targetClassroomNames.map(name =>
+      targetClassroomTags.map(tag =>
         supabase
           .from('members')
           .select('id, name, classes, status')
-          .contains('classes', [name])
+          .contains('classes', [tag])
           .eq('status', '在籍')
       )
     );

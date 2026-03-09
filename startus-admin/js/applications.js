@@ -4,6 +4,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { getClassrooms, getActiveClassrooms } from './classroom.js';
+import { namesToTags } from './class-utils.js';
 import { updateTabBadges } from './notifications.js';
 import { logActivity, openApplicationHistory as openAppHistory } from './history.js';
 import { getJimukyokuStaff, getStaffById, getAllActiveStaff } from './staff.js';
@@ -1548,7 +1549,7 @@ async function actionRegisterMember(app) {
     phone: fd.phone || '',
     email: fd.email || '',
     address: fd.address ? `${fd.zipcode ? fd.zipcode + ' ' : ''}${fd.address}` : '',
-    classes: Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []),
+    classes: namesToTags(Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : [])),
     grade: fd.grade || '',
     school: fd.school || '',
     guardian_name: fd.guardian_name || '',
@@ -1569,7 +1570,7 @@ async function actionRegisterMember(app) {
 
 async function actionAddToClass(app) {
   const fd = app.form_data || {};
-  const targetClasses = Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []);
+  const targetClasses = namesToTags(Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []));
 
   if (targetClasses.length === 0) {
     showToast('教室情報がありません', 'error');
@@ -1637,7 +1638,7 @@ async function actionUpdateMemberStatus(app) {
 
 async function actionRemoveFromClass(app) {
   const fd = app.form_data || {};
-  const targetClasses = Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []);
+  const targetClasses = namesToTags(Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []));
 
   const memberId = app.member_id;
   if (!memberId) {

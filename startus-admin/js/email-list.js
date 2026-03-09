@@ -6,11 +6,11 @@ import { getClassrooms } from './classroom.js';
 export function openEmailListModal() {
   const members = getAllMembers();
 
-  // 教室マスタから取得
-  const classes = getClassrooms().map(c => c.name);
+  // 教室マスタから取得（calendar_tagをvalueに使用）
+  const classroomList = getClassrooms();
 
-  const classOptions = classes.map(c =>
-    `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c)}" class="email-class-filter">${escapeHtml(c)}</label>`
+  const classOptions = classroomList.map(c =>
+    `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c.calendar_tag || c.name)}" class="email-class-filter">${escapeHtml(c.name)}</label>`
   ).join('');
 
   const html = `
@@ -22,7 +22,7 @@ export function openEmailListModal() {
         <label class="filter-pill"><input type="checkbox" value="退会" class="email-status-filter">退会</label>
       </div>
     </div>
-    ${classes.length > 0 ? `
+    ${classroomList.length > 0 ? `
     <div style="margin-bottom:12px">
       <div style="font-size:0.85rem;font-weight:600;color:var(--gray-600);margin-bottom:6px">教室（未選択＝全教室）</div>
       <div class="filter-checkboxes" id="email-class-filter">${classOptions}</div>
