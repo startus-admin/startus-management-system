@@ -577,20 +577,20 @@ function renderScheduleToolbar() {
   return `
     <div class="sch-toolbar">
       <div class="sch-toolbar-left">
-        <button class="btn btn-secondary" onclick="window.memberApp.goToScheduleToday()">
-          <span class="material-icons">today</span>今日
+        <button class="sch-today-btn" onclick="window.memberApp.goToScheduleToday()">
+          <span class="material-icons" style="font-size:18px">today</span>今日
         </button>
-        <button class="btn-icon" onclick="window.memberApp.navigateSchedule(-1)" title="前へ">
+        <button class="sch-nav-btn" onclick="window.memberApp.navigateSchedule(-1)" title="前へ">
           <span class="material-icons">chevron_left</span>
         </button>
-        <button class="btn-icon" onclick="window.memberApp.navigateSchedule(1)" title="次へ">
+        <button class="sch-nav-btn" onclick="window.memberApp.navigateSchedule(1)" title="次へ">
           <span class="material-icons">chevron_right</span>
         </button>
         <span class="sch-date-label">${escapeHtml(dateLabel)}</span>
       </div>
       <div class="sch-toolbar-right">
         <div class="sch-view-toggle">${viewBtns}</div>
-        <button class="btn-icon" onclick="window.memberApp.refreshSchedule()" title="更新">
+        <button class="sch-nav-btn" onclick="window.memberApp.refreshSchedule()" title="更新">
           <span class="material-icons">refresh</span>
         </button>
       </div>
