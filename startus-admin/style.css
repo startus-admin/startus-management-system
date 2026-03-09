@@ -3593,7 +3593,7 @@ body {
   margin: 0;
 }
 
-/* ===== Chat (業務チャット) ===== */
+/* ===== Chat (業務チャット - Slack風) ===== */
 
 /* FAB */
 .chat-fab {
@@ -3674,7 +3674,7 @@ body {
   width: 380px;
   max-width: 100vw;
   height: 100vh;
-  background: white;
+  background: #f8f9fb;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
   z-index: 150;
   display: flex;
@@ -3690,9 +3690,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--gray-200);
   flex-shrink: 0;
+  background: white;
+}
+
+.chat-sidebar-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .chat-sidebar-header h3 {
@@ -3707,63 +3714,129 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
-/* Channel list */
+/* ---- Channel List (Slack-style sections) ---- */
+
 .chat-channel-list {
   display: flex;
   flex-direction: column;
+  padding: 4px 0;
 }
 
+/* Pinned self-memo */
+.chat-pinned-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--gray-600);
+  margin: 2px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.chat-pinned-item:hover {
+  background: var(--gray-200);
+}
+
+/* Section */
+.chat-section {
+  margin-top: 4px;
+}
+
+.chat-section-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chat-section-chevron {
+  font-size: 18px;
+  color: var(--gray-400);
+  transition: transform 0.15s;
+}
+
+.chat-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  letter-spacing: 0.03em;
+  flex: 1;
+}
+
+.chat-section-items.collapsed {
+  display: none;
+}
+
+.chat-section-empty {
+  padding: 4px 24px 8px;
+  font-size: 0.8rem;
+  color: var(--gray-400);
+}
+
+/* Channel item */
 .chat-channel-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 8px;
+  padding: 6px 16px 6px 20px;
   cursor: pointer;
   transition: background 0.15s;
-  border-bottom: 1px solid var(--gray-100);
+  font-size: 0.88rem;
+  color: var(--gray-600);
+  border-radius: 6px;
+  margin: 1px 8px;
 }
 
 .chat-channel-item:hover {
-  background: var(--gray-50);
+  background: var(--gray-200);
 }
 
-.chat-channel-unread {
-  background: #eff6ff;
+.chat-channel-active {
+  background: var(--primary-light) !important;
+  color: var(--primary-dark);
 }
 
-.chat-channel-unread:hover {
-  background: #dbeafe;
+.chat-channel-active .chat-channel-name {
+  color: var(--primary-dark);
+  font-weight: 600;
 }
 
-.chat-channel-icon {
-  font-size: 22px;
-  color: var(--gray-400);
-  flex-shrink: 0;
-}
-
-.chat-channel-unread .chat-channel-icon {
-  color: var(--primary-color);
-}
-
-.chat-channel-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.chat-channel-name {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--gray-700);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.chat-channel-active .chat-channel-hash {
+  color: var(--primary-dark);
 }
 
 .chat-channel-unread .chat-channel-name {
   font-weight: 700;
   color: var(--gray-900);
+}
+
+/* Hash icon for group channels */
+.chat-channel-hash {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gray-400);
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.chat-channel-name {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--gray-700);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
 .chat-unread-dot {
@@ -3781,100 +3854,184 @@ body {
   flex-shrink: 0;
 }
 
-/* Thread container */
+/* New DM button */
+.chat-new-dm-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: auto;
+}
+
+.chat-new-dm-btn:hover {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
+.chat-new-dm-btn .material-icons {
+  font-size: 18px;
+}
+
+/* ---- Avatar ---- */
+
+.chat-avatar {
+  border-radius: 50%;
+  color: white;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ---- Message Thread (Slack-style) ---- */
+
 .chat-thread-container {
   display: flex;
   flex-direction: column;
   height: 100%;
+  background: white;
 }
 
-.chat-thread-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 8px 8px 4px;
-  border-bottom: 1px solid var(--gray-200);
-  flex-shrink: 0;
-}
-
-.chat-thread-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--gray-800);
-}
-
-/* Messages scroll */
 .chat-messages-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 8px 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Slack-style message row */
+.chat-msg {
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
+  padding: 4px 16px;
+  position: relative;
+  transition: background 0.15s;
 }
 
-/* Message bubbles */
-.chat-message {
-  max-width: 85%;
+.chat-msg:hover {
+  background: var(--gray-50);
 }
 
-.chat-message-self {
-  align-self: flex-end;
+.chat-msg:not(.chat-msg--grouped) {
+  padding-top: 8px;
+  margin-top: 4px;
 }
 
-.chat-message-other {
-  align-self: flex-start;
+.chat-msg-avatar {
+  flex-shrink: 0;
+  width: 36px;
+  padding-top: 2px;
 }
 
-.chat-message-sender {
+.chat-msg-avatar-spacer {
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.chat-msg-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 1px;
+}
+
+.chat-msg-sender {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.chat-msg-time {
   font-size: 0.72rem;
-  color: var(--gray-500);
-  margin-bottom: 2px;
-  padding-left: 4px;
+  color: var(--gray-400);
 }
 
-.chat-bubble {
-  padding: 8px 12px;
-  border-radius: 12px;
+.chat-msg-body {
   font-size: 0.88rem;
   line-height: 1.5;
+  color: var(--gray-800);
   word-break: break-word;
 }
 
-.chat-message-self .chat-bubble {
-  background: var(--primary-color);
-  color: white;
-  border-bottom-right-radius: 4px;
+/* Hover timestamp for grouped messages */
+.chat-msg-hover-time {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6rem;
+  color: var(--gray-400);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
 }
 
-.chat-message-other .chat-bubble {
-  background: var(--gray-100);
-  color: var(--gray-800);
-  border-bottom-left-radius: 4px;
+.chat-msg--grouped:hover .chat-msg-hover-time {
+  opacity: 1;
 }
 
-.chat-bubble-text {
-  font-size: 0.88rem;
+/* Date separator */
+.chat-date-separator {
+  display: flex;
+  align-items: center;
+  padding: 16px 16px 8px;
+  gap: 12px;
 }
 
-.chat-bubble-time {
-  font-size: 0.65rem;
-  opacity: 0.6;
-  text-align: right;
-  margin-top: 2px;
+.chat-date-separator::before,
+.chat-date-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--gray-200);
 }
 
-.chat-message-self .chat-bubble-time {
-  color: rgba(255, 255, 255, 0.7);
+.chat-date-separator span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  white-space: nowrap;
 }
 
-/* Task message card */
+/* System divider */
+.chat-system-divider {
+  text-align: center;
+  padding: 8px 16px;
+}
+
+.chat-system-divider span {
+  font-size: 0.75rem;
+  color: var(--gray-400);
+  background: var(--gray-50);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+}
+
+/* Task card (in Slack message row) */
 .chat-task-card {
-  background: white;
+  background: var(--gray-50);
   border: 1px solid var(--gray-200);
   border-left: 3px solid var(--primary-color);
   border-radius: var(--radius-md);
   padding: 10px 12px;
+  margin-top: 4px;
   max-width: 100%;
 }
 
@@ -3903,58 +4060,49 @@ body {
   gap: 4px;
 }
 
-/* System message */
-.chat-message-system {
-  align-self: center;
-  text-align: center;
-  max-width: 90%;
-}
+/* ---- Input Area (Slack-style) ---- */
 
-.chat-system-text {
-  font-size: 0.75rem;
-  color: var(--gray-400);
-  background: var(--gray-50);
-  padding: 4px 12px;
-  border-radius: var(--radius-full);
-  display: inline-block;
-}
-
-/* Input area */
 .chat-input-area {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--gray-200);
+  padding: 8px 12px 12px;
   background: white;
   flex-shrink: 0;
 }
 
+.chat-input-container {
+  display: flex;
+  align-items: flex-end;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: white;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  padding: 4px 4px 4px 12px;
+}
+
+.chat-input-container:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
 .chat-input {
   flex: 1;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  padding: 8px 12px;
+  border: none;
+  padding: 6px 0;
   font-size: 0.88rem;
   font-family: inherit;
   resize: none;
   outline: none;
   max-height: 100px;
   line-height: 1.4;
-  transition: border-color 0.15s;
-}
-
-.chat-input:focus {
-  border-color: var(--primary-color);
+  background: transparent;
 }
 
 .chat-send-btn {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border: none;
   background: var(--primary-color);
   color: white;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -3968,7 +4116,57 @@ body {
 }
 
 .chat-send-btn .material-icons {
-  font-size: 20px;
+  font-size: 18px;
+}
+
+/* ---- DM Picker Modal ---- */
+
+.chat-dm-modal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: white;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-dm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gray-200);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--gray-800);
+}
+
+.chat-dm-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.chat-dm-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--gray-700);
+  transition: background 0.15s;
+}
+
+.chat-dm-picker-item:hover {
+  background: var(--gray-50);
+}
+
+.chat-dm-picker-name {
+  flex: 1;
 }
 
 /* Empty state */
@@ -3977,6 +4175,25 @@ body {
   padding: 40px 20px;
   color: var(--gray-400);
   font-size: 0.88rem;
+}
+
+/* ---- Mobile responsive ---- */
+@media (max-width: 600px) {
+  .chat-fab {
+    width: 48px;
+    height: 48px;
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .chat-fab .material-icons {
+    font-size: 22px;
+  }
+
+  .chat-sidebar {
+    width: 100vw;
+    right: -100vw;
+  }
 }
 
 /* ===== Print Layout (F7) ===== */

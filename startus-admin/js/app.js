@@ -74,7 +74,8 @@ import { updateTabBadges, startBadgePolling } from './notifications.js';
 import {
   initChat, toggleChat, sendTaskMessage, openRefFromChat,
   openDmWithStaff, chatOpenChannel, chatBackToList, chatSendMessage,
-  loadUnreadCounts, updateUnreadBadge
+  loadUnreadCounts, updateUnreadBadge,
+  chatToggleSection, chatShowNewDmPicker, chatHideNewDmPicker, chatStartDm
 } from './chat.js';
 import { initScheduleManager } from './sm-manager.js';
 import {
@@ -542,6 +543,10 @@ window.memberApp = {
   chatOpenChannel,
   chatBackToList,
   chatSendMessage,
+  chatToggleSection,
+  chatShowNewDmPicker,
+  chatHideNewDmPicker,
+  chatStartDm,
   toggleSearchBar,
   isAdmin,
   toggleSidebar,

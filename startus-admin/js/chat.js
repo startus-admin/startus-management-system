@@ -1,9 +1,9 @@
-// --- 業務チャット ---
+// --- 業務チャット (Slack風UI) ---
 
 import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast } from './app.js';
-import { getStaffById, getStaffByEmail } from './staff.js';
+import { getStaffById, getStaffByEmail, getAllActiveStaff } from './staff.js';
 
 // --- State ---
 
@@ -17,16 +17,154 @@ let unreadCounts = {};
 let isOpen = false;
 let pollTimer = null;
 
+// --- Slack UI State ---
+
+let sectionCollapsed = { channels: false, dms: false };
+let dmPartnerNames = {};
+let dmPartnerIds = {};
+
 // --- Constants ---
 
 const MESSAGE_LIMIT = 50;
 const POLL_INTERVAL = 30000;
 
-const CHANNEL_ICONS = {
-  group: 'groups',
-  self: 'note',
-  dm: 'person',
-};
+const AVATAR_COLORS = [
+  '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444',
+  '#06b6d4', '#ec4899', '#6366f1', '#14b8a6', '#f97316',
+];
+
+// --- Avatar Helpers ---
+
+function getInitials(name) {
+  if (!name) return '?';
+  const trimmed = name.trim();
+  if (/^[a-zA-Z]/.test(trimmed)) {
+    return trimmed.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  }
+  return trimmed.charAt(0);
+}
+
+function getAvatarColor(staffId) {
+  if (!staffId) return AVATAR_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < staffId.length; i++) {
+    hash = staffId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function renderAvatar(staffId, size = 32) {
+  const staff = getStaffById(staffId);
+  const name = staff ? staff.name : '?';
+  const initials = getInitials(name);
+  const color = getAvatarColor(staffId);
+  const fontSize = size <= 24 ? '0.65rem' : '0.8rem';
+  return `<div class="chat-avatar" style="width:${size}px;height:${size}px;background:${color};font-size:${fontSize}">${escapeHtml(initials)}</div>`;
+}
+
+// --- Date Helpers ---
+
+function formatDateSeparator(isoStr) {
+  const d = new Date(isoStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today - msgDay) / 86400000);
+
+  if (diffDays === 0) return '今日';
+  if (diffDays === 1) return '昨日';
+
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const dd = d.getDate();
+  const weekday = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+
+  if (y === now.getFullYear()) return `${m}月${dd}日（${weekday}）`;
+  return `${y}年${m}月${dd}日（${weekday}）`;
+}
+
+function formatChatTime(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+
+  if (isToday) return `${hh}:${mm}`;
+
+  const m = d.getMonth() + 1;
+  const dd = d.getDate();
+  return `${m}/${dd} ${hh}:${mm}`;
+}
+
+// --- Message Grouping ---
+
+function groupMessages(msgs) {
+  if (!msgs || msgs.length === 0) return [];
+
+  const result = [];
+  let prevSenderId = null;
+  let prevDate = null;
+  let prevTimestamp = null;
+
+  for (let i = 0; i < msgs.length; i++) {
+    const msg = msgs[i];
+    const msgDate = new Date(msg.created_at);
+    const dateStr = msgDate.toDateString();
+
+    // Insert date separator if date changed
+    if (dateStr !== prevDate) {
+      result.push({
+        type: 'date-separator',
+        date: msg.created_at,
+        label: formatDateSeparator(msg.created_at),
+      });
+      prevSenderId = null;
+    }
+
+    // System and task messages always break grouping
+    if (msg.message_type === 'system' || msg.message_type === 'task') {
+      result.push({ type: 'message', msg, grouped: false });
+      prevSenderId = null;
+      prevDate = dateStr;
+      prevTimestamp = msgDate;
+      continue;
+    }
+
+    // Group: same sender, same date, within 5 minutes
+    const timeDiff = prevTimestamp ? (msgDate - prevTimestamp) / 60000 : Infinity;
+    const isGrouped = (
+      msg.sender_id === prevSenderId &&
+      dateStr === prevDate &&
+      timeDiff < 5
+    );
+
+    result.push({ type: 'message', msg, grouped: isGrouped });
+
+    prevSenderId = msg.sender_id;
+    prevDate = dateStr;
+    prevTimestamp = msgDate;
+  }
+
+  return result;
+}
+
+// --- Section Collapse ---
+
+function loadSectionState() {
+  try {
+    const saved = localStorage.getItem('chat-section-collapsed');
+    if (saved) sectionCollapsed = JSON.parse(saved);
+  } catch (e) { /* ignore */ }
+}
+
+function toggleSection(key) {
+  sectionCollapsed[key] = !sectionCollapsed[key];
+  localStorage.setItem('chat-section-collapsed', JSON.stringify(sectionCollapsed));
+  renderChannelList();
+}
 
 // --- Init / Destroy ---
 
@@ -37,6 +175,7 @@ export async function initChat(staffInfo) {
     return;
   }
 
+  loadSectionState();
   console.log('initChat: 開始', currentStaff.id, currentStaff.name);
   await loadChannels();
   console.log('initChat: loadChannels後', channels.length, '件');
@@ -117,6 +256,7 @@ export async function sendMessage() {
   if (!body) return;
 
   input.value = '';
+  input.style.height = 'auto';
   input.focus();
 
   const { data: inserted, error } = await supabase.from('chat_messages').insert({
@@ -133,7 +273,6 @@ export async function sendMessage() {
     return;
   }
 
-  // 送信成功 → 即座に画面に表示（Realtime を待たない）
   if (inserted && !messages.find(m => m.id === inserted.id)) {
     messages.push(inserted);
     appendMessageToThread(inserted);
@@ -149,7 +288,6 @@ export async function sendTaskMessage(targetStaffId, refType, refId, refLabel, b
   if (targetStaffId) {
     channelId = await ensureDmChannel(targetStaffId);
   } else {
-    // グループチャンネルに送信
     const group = channels.find(c => c.slug === 'jimukyoku');
     if (!group) return;
     channelId = group.id;
@@ -224,7 +362,6 @@ async function loadChannels() {
   }
   channels = data || [];
 
-  // DM チャンネルの相手名を読み込む
   await loadDmPartnerNames();
 }
 
@@ -283,7 +420,6 @@ async function ensureSelfChannel() {
   const existing = channels.find(c => c.slug === slug);
   if (existing) return;
 
-  // Check if channel exists but user not a member
   const { data: existingChannel, error: selfErr } = await supabase
     .from('chat_channels')
     .select('id')
@@ -308,7 +444,6 @@ async function ensureSelfChannel() {
     channelId = newChannel.id;
   }
 
-  // Add self as member
   await supabase.from('chat_channel_members').upsert({
     channel_id: channelId,
     staff_id: currentStaff.id,
@@ -342,7 +477,6 @@ async function ensureGroupMembership() {
 async function ensureDmChannel(otherStaffId) {
   if (!currentStaff || otherStaffId === currentStaff.id) return null;
 
-  // Search existing DM channels
   const myDms = channels.filter(c => c.type === 'dm');
   for (const dm of myDms) {
     const { data: otherMember } = await supabase
@@ -355,8 +489,6 @@ async function ensureDmChannel(otherStaffId) {
     if (otherMember) return dm.id;
   }
 
-  // Create new DM channel
-  const otherStaff = getStaffById(otherStaffId);
   const { data: newChannel } = await supabase
     .from('chat_channels')
     .insert({
@@ -377,6 +509,34 @@ async function ensureDmChannel(otherStaffId) {
 
   await loadChannels();
   return newChannel.id;
+}
+
+// --- DM Partner Cache ---
+
+async function loadDmPartnerNames() {
+  if (!currentStaff) return;
+  const dmChannels = channels.filter(c => c.type === 'dm');
+
+  for (const ch of dmChannels) {
+    const { data: members } = await supabase
+      .from('chat_channel_members')
+      .select('staff_id')
+      .eq('channel_id', ch.id)
+      .neq('staff_id', currentStaff.id);
+
+    if (members && members.length > 0) {
+      const partner = getStaffById(members[0].staff_id);
+      dmPartnerNames[ch.id] = partner ? partner.name : '不明';
+      dmPartnerIds[ch.id] = members[0].staff_id;
+    }
+  }
+}
+
+function getChannelDisplayName(ch) {
+  if (ch.type === 'group') return ch.name || 'グループ';
+  if (ch.type === 'self') return '自分メモ';
+  if (ch.type === 'dm') return dmPartnerNames[ch.id] || 'DM';
+  return ch.name || 'チャット';
 }
 
 // --- Realtime ---
@@ -413,10 +573,8 @@ function handleNewMessage(payload) {
   const msg = payload.new;
   if (!msg || !currentStaff) return;
 
-  // Check if this message belongs to a channel we're in
   const myChannelIds = channels.map(c => c.id);
   if (!myChannelIds.includes(msg.channel_id)) {
-    // Might be a new DM channel — reload channels
     loadChannels().then(() => {
       const ids = channels.map(c => c.id);
       if (ids.includes(msg.channel_id)) {
@@ -429,14 +587,12 @@ function handleNewMessage(payload) {
   }
 
   if (msg.channel_id === currentChannelId && isOpen) {
-    // Currently viewing this channel — 重複チェック
     if (messages.find(m => m.id === msg.id)) return;
     messages.push(msg);
     appendMessageToThread(msg);
     scrollToBottom();
     markAsRead(msg.channel_id);
   } else {
-    // Different channel — increment unread
     if (msg.sender_id !== currentStaff.id) {
       unreadCounts[msg.channel_id] = (unreadCounts[msg.channel_id] || 0) + 1;
       updateUnreadBadge();
@@ -466,108 +622,133 @@ function stopPollingFallback() {
   }
 }
 
-// --- Rendering: Channel List ---
+// ===== Rendering: Channel List (Slack-style) =====
 
 function renderChannelList() {
   const body = document.getElementById('chat-sidebar-body');
   const title = document.getElementById('chat-sidebar-title');
+  const backBtn = document.getElementById('chat-back-btn');
   if (!body) return;
   if (title) title.textContent = 'チャット';
+  if (backBtn) backBtn.style.display = 'none';
 
-  // Sort: group first, then self, then DM
-  const typeOrder = { group: 0, self: 1, dm: 2 };
-  const sorted = [...channels].sort((a, b) => (typeOrder[a.type] || 9) - (typeOrder[b.type] || 9));
+  const selfChannel = channels.find(c => c.type === 'self');
+  const groupChannels = channels.filter(c => c.type === 'group');
+  const dmChannels = channels.filter(c => c.type === 'dm');
 
-  const items = sorted.map(ch => {
-    const unread = unreadCounts[ch.id] || 0;
-    const icon = CHANNEL_ICONS[ch.type] || 'chat';
-    const displayName = getChannelDisplayName(ch);
+  let html = '';
 
-    return `
-      <div class="chat-channel-item ${unread > 0 ? 'chat-channel-unread' : ''}"
-           onclick="window.memberApp.chatOpenChannel('${ch.id}')">
-        <span class="material-icons chat-channel-icon">${icon}</span>
-        <div class="chat-channel-info">
-          <div class="chat-channel-name">${escapeHtml(displayName)}</div>
-        </div>
+  // 1. Pinned self-memo
+  if (selfChannel) {
+    const unread = unreadCounts[selfChannel.id] || 0;
+    html += `
+      <div class="chat-pinned-item ${currentChannelId === selfChannel.id ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
+           onclick="window.memberApp.chatOpenChannel('${selfChannel.id}')">
+        <span class="material-icons" style="font-size:18px;color:var(--gray-400)">bookmark</span>
+        <span class="chat-channel-name">自分メモ</span>
         ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
       </div>`;
+  }
+
+  // 2. Channels section
+  html += renderSection('channels', 'チャンネル', groupChannels);
+
+  // 3. DM section (with + button)
+  html += renderSection('dms', 'ダイレクトメッセージ', dmChannels, true);
+
+  body.innerHTML = `<div class="chat-channel-list">${html}</div>`;
+}
+
+function renderSection(key, label, items, showAddBtn = false) {
+  const collapsed = sectionCollapsed[key];
+  const chevron = collapsed ? 'chevron_right' : 'expand_more';
+
+  const addBtnHtml = showAddBtn
+    ? `<button class="chat-new-dm-btn" onclick="event.stopPropagation();window.memberApp.chatShowNewDmPicker()" title="新しいメッセージ">
+        <span class="material-icons">add</span>
+      </button>`
+    : '';
+
+  const itemsHtml = items.map(ch => {
+    const unread = unreadCounts[ch.id] || 0;
+    const displayName = getChannelDisplayName(ch);
+    const isActive = ch.id === currentChannelId;
+
+    if (ch.type === 'group') {
+      return `
+        <div class="chat-channel-item ${isActive ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
+             onclick="window.memberApp.chatOpenChannel('${ch.id}')">
+          <span class="chat-channel-hash">#</span>
+          <span class="chat-channel-name">${escapeHtml(displayName)}</span>
+          ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
+        </div>`;
+    } else {
+      const partnerId = dmPartnerIds[ch.id];
+      return `
+        <div class="chat-channel-item ${isActive ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
+             onclick="window.memberApp.chatOpenChannel('${ch.id}')">
+          ${renderAvatar(partnerId, 24)}
+          <span class="chat-channel-name">${escapeHtml(displayName)}</span>
+          ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
+        </div>`;
+    }
   }).join('');
 
-  body.innerHTML = `
-    <div class="chat-channel-list">
-      ${items || '<div class="chat-empty">チャンネルがありません</div>'}
+  return `
+    <div class="chat-section">
+      <div class="chat-section-header ${collapsed ? 'collapsed' : ''}"
+           onclick="window.memberApp.chatToggleSection('${key}')">
+        <span class="material-icons chat-section-chevron">${chevron}</span>
+        <span class="chat-section-label">${label}</span>
+        ${addBtnHtml}
+      </div>
+      <div class="chat-section-items ${collapsed ? 'collapsed' : ''}">
+        ${itemsHtml || '<div class="chat-section-empty">なし</div>'}
+      </div>
     </div>`;
 }
 
-function getChannelDisplayName(ch) {
-  if (ch.type === 'group') return ch.name || 'グループ';
-  if (ch.type === 'self') return '自分メモ';
-  if (ch.type === 'dm') {
-    // Find the other person's name
-    return getDmPartnerName(ch.id);
-  }
-  return ch.name || 'チャット';
-}
-
-function getDmPartnerName(channelId) {
-  // We need to look up the other member — for now use a cached approach
-  // This will be resolved when we fetch channel members
-  return dmPartnerNames[channelId] || 'DM';
-}
-
-// Cache for DM partner names (populated during loadChannels)
-let dmPartnerNames = {};
-
-async function loadDmPartnerNames() {
-  if (!currentStaff) return;
-  const dmChannels = channels.filter(c => c.type === 'dm');
-
-  for (const ch of dmChannels) {
-    const { data: members } = await supabase
-      .from('chat_channel_members')
-      .select('staff_id')
-      .eq('channel_id', ch.id)
-      .neq('staff_id', currentStaff.id);
-
-    if (members && members.length > 0) {
-      const partner = getStaffById(members[0].staff_id);
-      dmPartnerNames[ch.id] = partner ? partner.name : '不明';
-    }
-  }
-}
-
-// --- Rendering: Message Thread ---
+// ===== Rendering: Message Thread (Slack-style) =====
 
 function renderMessageThread() {
   const body = document.getElementById('chat-sidebar-body');
   const title = document.getElementById('chat-sidebar-title');
+  const backBtn = document.getElementById('chat-back-btn');
   if (!body) return;
 
   const channel = channels.find(c => c.id === currentChannelId);
   const channelName = channel ? getChannelDisplayName(channel) : 'チャット';
   if (title) title.textContent = channelName;
+  if (backBtn) backBtn.style.display = '';
 
-  const messagesHtml = messages.map(msg => renderMessage(msg)).join('');
+  // Group messages
+  const grouped = groupMessages(messages);
+
+  const messagesHtml = grouped.map(item => {
+    if (item.type === 'date-separator') {
+      return `<div class="chat-date-separator"><span>${escapeHtml(item.label)}</span></div>`;
+    }
+    return renderSlackMessage(item.msg, item.grouped);
+  }).join('');
+
+  const placeholder = channel
+    ? `メッセージを送信 ${channel.type === 'group' ? '#' : ''}${channelName}`
+    : 'メッセージを入力...';
 
   body.innerHTML = `
     <div class="chat-thread-container">
-      <div class="chat-thread-header">
-        <button class="btn-icon" onclick="window.memberApp.chatBackToList()">
-          <span class="material-icons">arrow_back</span>
-        </button>
-        <span class="chat-thread-title">${escapeHtml(channelName)}</span>
-      </div>
       <div class="chat-messages-scroll" id="chat-messages-scroll">
         ${messagesHtml || '<div class="chat-empty">メッセージがありません</div>'}
       </div>
       <div class="chat-input-area">
-        <textarea id="chat-message-input" class="chat-input" rows="1"
-          placeholder="メッセージを入力..."
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window.memberApp.chatSendMessage()}"></textarea>
-        <button class="chat-send-btn" onclick="window.memberApp.chatSendMessage()">
-          <span class="material-icons">send</span>
-        </button>
+        <div class="chat-input-container">
+          <textarea id="chat-message-input" class="chat-input" rows="1"
+            placeholder="${escapeHtml(placeholder)}"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window.memberApp.chatSendMessage()}"></textarea>
+          <button class="chat-send-btn" onclick="window.memberApp.chatSendMessage()">
+            <span class="material-icons">send</span>
+          </button>
+        </div>
       </div>
     </div>`;
 
@@ -583,26 +764,41 @@ function renderMessageThread() {
   scrollToBottom();
 }
 
-function renderMessage(msg) {
-  if (msg.message_type === 'system') return renderSystemMessage(msg);
-  if (msg.message_type === 'task') return renderTaskMessage(msg);
+// --- Slack-style Message Rendering ---
 
-  const isSelf = msg.sender_id === currentStaff?.id;
+function renderSlackMessage(msg, isGrouped) {
+  if (msg.message_type === 'system') return renderSystemDivider(msg);
+  if (msg.message_type === 'task') return renderTaskCard(msg);
+
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
 
+  if (isGrouped) {
+    return `
+      <div class="chat-msg chat-msg--grouped">
+        <div class="chat-msg-avatar-spacer"></div>
+        <div class="chat-msg-content">
+          <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</div>
+        </div>
+        <span class="chat-msg-hover-time">${time}</span>
+      </div>`;
+  }
+
   return `
-    <div class="chat-message ${isSelf ? 'chat-message-self' : 'chat-message-other'}">
-      ${!isSelf ? `<div class="chat-message-sender">${escapeHtml(senderName)}</div>` : ''}
-      <div class="chat-bubble">
-        <div class="chat-bubble-text">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</div>
-        <div class="chat-bubble-time">${time}</div>
+    <div class="chat-msg">
+      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-header">
+          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
+          <span class="chat-msg-time">${time}</span>
+        </div>
+        <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</div>
       </div>
     </div>`;
 }
 
-function renderTaskMessage(msg) {
+function renderTaskCard(msg) {
   const meta = msg.metadata || {};
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
@@ -612,43 +808,70 @@ function renderTaskMessage(msg) {
   const refId = meta.ref_id || '';
 
   return `
-    <div class="chat-message chat-message-other">
-      <div class="chat-message-sender">${escapeHtml(senderName)}</div>
-      <div class="chat-task-card">
-        <div class="chat-task-header">
-          <span class="material-icons" style="font-size:18px;color:var(--primary-color)">assignment</span>
-          <span class="chat-task-label">${escapeHtml(refLabel)}</span>
+    <div class="chat-msg">
+      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-header">
+          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
+          <span class="chat-msg-time">${time}</span>
         </div>
-        <div class="chat-task-body">${escapeHtml(msg.body)}</div>
-        ${refType && refId ? `
-          <button class="btn btn-secondary chat-task-btn"
-                  onclick="window.memberApp.openRefFromChat('${escapeHtml(refType)}', '${escapeHtml(refId)}')">
-            <span class="material-icons" style="font-size:16px">open_in_new</span>詳細を開く
-          </button>` : ''}
-        <div class="chat-bubble-time">${time}</div>
+        <div class="chat-task-card">
+          <div class="chat-task-header">
+            <span class="material-icons" style="font-size:18px;color:var(--primary-color)">assignment</span>
+            <span class="chat-task-label">${escapeHtml(refLabel)}</span>
+          </div>
+          <div class="chat-task-body">${escapeHtml(msg.body)}</div>
+          ${refType && refId ? `
+            <button class="btn btn-secondary chat-task-btn"
+                    onclick="window.memberApp.openRefFromChat('${escapeHtml(refType)}', '${escapeHtml(refId)}')">
+              <span class="material-icons" style="font-size:16px">open_in_new</span>詳細を開く
+            </button>` : ''}
+        </div>
       </div>
     </div>`;
 }
 
-function renderSystemMessage(msg) {
-  const time = formatChatTime(msg.created_at);
+function renderSystemDivider(msg) {
   return `
-    <div class="chat-message chat-message-system">
-      <div class="chat-system-text">${escapeHtml(msg.body)}</div>
-      <div class="chat-bubble-time">${time}</div>
+    <div class="chat-system-divider">
+      <span>${escapeHtml(msg.body)}</span>
     </div>`;
 }
+
+// --- Append Message (Realtime) ---
 
 function appendMessageToThread(msg) {
   const scroll = document.getElementById('chat-messages-scroll');
   if (!scroll) return;
 
-  // Remove empty state if present
   const empty = scroll.querySelector('.chat-empty');
   if (empty) empty.remove();
 
+  // Check if date separator needed
+  const prevMsg = messages.length >= 2 ? messages[messages.length - 2] : null;
+  const msgDate = new Date(msg.created_at);
+  const prevDate = prevMsg ? new Date(prevMsg.created_at) : null;
+
+  if (!prevDate || msgDate.toDateString() !== prevDate.toDateString()) {
+    const sep = document.createElement('div');
+    sep.className = 'chat-date-separator';
+    sep.innerHTML = `<span>${escapeHtml(formatDateSeparator(msg.created_at))}</span>`;
+    scroll.appendChild(sep);
+  }
+
+  // Determine if grouped
+  let isGrouped = false;
+  if (prevMsg &&
+      msg.message_type === 'text' &&
+      prevMsg.message_type === 'text' &&
+      msg.sender_id === prevMsg.sender_id &&
+      msgDate.toDateString() === (prevDate ? prevDate.toDateString() : '') &&
+      prevDate && (msgDate - prevDate) / 60000 < 5) {
+    isGrouped = true;
+  }
+
   const div = document.createElement('div');
-  div.innerHTML = renderMessage(msg);
+  div.innerHTML = renderSlackMessage(msg, isGrouped);
   const msgEl = div.firstElementChild;
   if (msgEl) scroll.appendChild(msgEl);
 }
@@ -675,22 +898,56 @@ export function updateUnreadBadge() {
   }
 }
 
-// --- Helpers ---
+// --- New DM Picker ---
 
-function formatChatTime(isoStr) {
-  if (!isoStr) return '';
-  const d = new Date(isoStr);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
+function showNewDmPicker() {
+  const body = document.getElementById('chat-sidebar-body');
+  if (!body) return;
 
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
+  // Remove existing picker
+  const existing = document.getElementById('chat-dm-modal');
+  if (existing) { existing.remove(); return; }
 
-  if (isToday) return `${hh}:${mm}`;
+  const allStaff = getAllActiveStaff();
+  const existingPartnerIds = Object.values(dmPartnerIds);
 
-  const m = d.getMonth() + 1;
-  const dd = d.getDate();
-  return `${m}/${dd} ${hh}:${mm}`;
+  const staffItems = allStaff
+    .filter(s => s.id !== currentStaff?.id)
+    .map(s => {
+      const hasDm = existingPartnerIds.includes(s.id);
+      return `
+        <div class="chat-dm-picker-item" onclick="window.memberApp.chatStartDm('${s.id}')">
+          ${renderAvatar(s.id, 32)}
+          <span class="chat-dm-picker-name">${escapeHtml(s.name)}</span>
+          ${hasDm ? '<span class="material-icons" style="font-size:14px;color:var(--gray-400)">chat</span>' : ''}
+        </div>`;
+    }).join('');
+
+  const picker = document.createElement('div');
+  picker.className = 'chat-dm-modal';
+  picker.id = 'chat-dm-modal';
+  picker.innerHTML = `
+    <div class="chat-dm-modal-header">
+      <span>新しいメッセージ</span>
+      <button class="btn-icon" onclick="window.memberApp.chatHideNewDmPicker()">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+    <div class="chat-dm-modal-body">
+      ${staffItems || '<div class="chat-empty">スタッフがいません</div>'}
+    </div>`;
+
+  body.appendChild(picker);
+}
+
+function hideNewDmPicker() {
+  const picker = document.getElementById('chat-dm-modal');
+  if (picker) picker.remove();
+}
+
+async function startDm(staffId) {
+  hideNewDmPicker();
+  await openDmWithStaff(staffId);
 }
 
 // --- Exported aliases for window.memberApp ---
@@ -698,4 +955,7 @@ function formatChatTime(isoStr) {
 export const chatOpenChannel = (id) => openChannel(id);
 export const chatBackToList = () => backToChannelList();
 export const chatSendMessage = () => sendMessage();
-
+export const chatToggleSection = (key) => toggleSection(key);
+export const chatShowNewDmPicker = () => showNewDmPicker();
+export const chatHideNewDmPicker = () => hideNewDmPicker();
+export const chatStartDm = (staffId) => startDm(staffId);
