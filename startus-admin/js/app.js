@@ -75,7 +75,12 @@ import {
   initChat, toggleChat, sendTaskMessage, openRefFromChat,
   openDmWithStaff, chatOpenChannel, chatBackToList, chatSendMessage,
   loadUnreadCounts, updateUnreadBadge,
-  chatToggleSection, chatShowNewDmPicker, chatHideNewDmPicker, chatStartDm
+  chatToggleSection, chatShowNewDmPicker, chatHideNewDmPicker, chatStartDm,
+  chatEditMessage, chatSaveEdit, chatCancelEdit,
+  chatDeleteMessage, chatConfirmDelete, chatCancelDelete,
+  chatAttachFile,
+  chatOpenLinkPicker, chatCloseLinkPicker, chatSelectLinkCategory,
+  chatSearchLinkRecords, chatSendLinkMessage, chatLinkPickerBack
 } from './chat.js';
 import { initScheduleManager } from './sm-manager.js';
 import {
@@ -547,6 +552,19 @@ window.memberApp = {
   chatShowNewDmPicker,
   chatHideNewDmPicker,
   chatStartDm,
+  chatEditMessage,
+  chatSaveEdit,
+  chatCancelEdit,
+  chatDeleteMessage,
+  chatConfirmDelete,
+  chatCancelDelete,
+  chatAttachFile,
+  chatOpenLinkPicker,
+  chatCloseLinkPicker,
+  chatSelectLinkCategory,
+  chatSearchLinkRecords,
+  chatSendLinkMessage,
+  chatLinkPickerBack,
   toggleSearchBar,
   isAdmin,
   toggleSidebar,

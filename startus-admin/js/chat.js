@@ -1,4 +1,4 @@
-// --- 業務チャット (Slack風UI) ---
+// --- 業務チャット (Slack風UI + ファイル/リンク/編集/削除) ---
 
 import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
@@ -7,7 +7,7 @@ import { getStaffById, getStaffByEmail, getAllActiveStaff } from './staff.js';
 
 // --- State ---
 
-let currentView = 'channel-list'; // 'channel-list' | 'message-thread'
+let currentView = 'channel-list';
 let currentChannelId = null;
 let channels = [];
 let messages = [];
@@ -22,18 +22,29 @@ let pollTimer = null;
 let sectionCollapsed = { channels: false, dms: false };
 let dmPartnerNames = {};
 let dmPartnerIds = {};
+let linkSearchTimeout = null;
 
 // --- Constants ---
 
 const MESSAGE_LIMIT = 50;
 const POLL_INTERVAL = 30000;
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 const AVATAR_COLORS = [
   '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444',
   '#06b6d4', '#ec4899', '#6366f1', '#14b8a6', '#f97316',
 ];
 
-// --- Avatar Helpers ---
+const REF_TYPE_MAP = {
+  member:      { label: '会員',       icon: 'person' },
+  application: { label: '申請',       icon: 'description' },
+  trial:       { label: '体験',       icon: 'sports' },
+  transfer:    { label: '振替',       icon: 'swap_horiz' },
+  staff:       { label: 'スタッフ',   icon: 'badge' },
+  classroom:   { label: '教室',       icon: 'school' },
+};
+
+// ===== Avatar Helpers =====
 
 function getInitials(name) {
   if (!name) return '?';
@@ -62,7 +73,7 @@ function renderAvatar(staffId, size = 32) {
   return `<div class="chat-avatar" style="width:${size}px;height:${size}px;background:${color};font-size:${fontSize}">${escapeHtml(initials)}</div>`;
 }
 
-// --- Date Helpers ---
+// ===== Date / Time Helpers =====
 
 function formatDateSeparator(isoStr) {
   const d = new Date(isoStr);
@@ -70,15 +81,12 @@ function formatDateSeparator(isoStr) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diffDays = Math.round((today - msgDay) / 86400000);
-
   if (diffDays === 0) return '今日';
   if (diffDays === 1) return '昨日';
-
   const y = d.getFullYear();
   const m = d.getMonth() + 1;
   const dd = d.getDate();
   const weekday = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
-
   if (y === now.getFullYear()) return `${m}月${dd}日（${weekday}）`;
   return `${y}年${m}月${dd}日（${weekday}）`;
 }
@@ -87,45 +95,51 @@ function formatChatTime(isoStr) {
   if (!isoStr) return '';
   const d = new Date(isoStr);
   const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-
-  if (isToday) return `${hh}:${mm}`;
-
-  const m = d.getMonth() + 1;
-  const dd = d.getDate();
-  return `${m}/${dd} ${hh}:${mm}`;
+  if (d.toDateString() === now.toDateString()) return `${hh}:${mm}`;
+  return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
 }
 
-// --- Message Grouping ---
+// ===== File Helpers =====
+
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function getFileIcon(mimeType) {
+  if (!mimeType) return 'description';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.includes('pdf')) return 'picture_as_pdf';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'table_chart';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'article';
+  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'slideshow';
+  if (mimeType.includes('zip') || mimeType.includes('compressed')) return 'folder_zip';
+  return 'description';
+}
+
+// ===== Message Grouping =====
 
 function groupMessages(msgs) {
   if (!msgs || msgs.length === 0) return [];
-
   const result = [];
   let prevSenderId = null;
   let prevDate = null;
   let prevTimestamp = null;
 
-  for (let i = 0; i < msgs.length; i++) {
-    const msg = msgs[i];
+  for (const msg of msgs) {
     const msgDate = new Date(msg.created_at);
     const dateStr = msgDate.toDateString();
 
-    // Insert date separator if date changed
     if (dateStr !== prevDate) {
-      result.push({
-        type: 'date-separator',
-        date: msg.created_at,
-        label: formatDateSeparator(msg.created_at),
-      });
+      result.push({ type: 'date-separator', date: msg.created_at, label: formatDateSeparator(msg.created_at) });
       prevSenderId = null;
     }
 
-    // System and task messages always break grouping
-    if (msg.message_type === 'system' || msg.message_type === 'task') {
+    if (msg.message_type === 'system' || msg.message_type === 'task' || msg.is_deleted) {
       result.push({ type: 'message', msg, grouped: false });
       prevSenderId = null;
       prevDate = dateStr;
@@ -133,25 +147,18 @@ function groupMessages(msgs) {
       continue;
     }
 
-    // Group: same sender, same date, within 5 minutes
     const timeDiff = prevTimestamp ? (msgDate - prevTimestamp) / 60000 : Infinity;
-    const isGrouped = (
-      msg.sender_id === prevSenderId &&
-      dateStr === prevDate &&
-      timeDiff < 5
-    );
-
+    const isGrouped = msg.sender_id === prevSenderId && dateStr === prevDate && timeDiff < 5;
     result.push({ type: 'message', msg, grouped: isGrouped });
 
     prevSenderId = msg.sender_id;
     prevDate = dateStr;
     prevTimestamp = msgDate;
   }
-
   return result;
 }
 
-// --- Section Collapse ---
+// ===== Section Collapse =====
 
 function loadSectionState() {
   try {
@@ -166,23 +173,15 @@ function toggleSection(key) {
   renderChannelList();
 }
 
-// --- Init / Destroy ---
+// ===== Init / Destroy =====
 
 export async function initChat(staffInfo) {
   currentStaff = staffInfo;
-  if (!currentStaff) {
-    console.warn('initChat: スタッフ情報がありません');
-    return;
-  }
-
+  if (!currentStaff) { console.warn('initChat: スタッフ情報がありません'); return; }
   loadSectionState();
-  console.log('initChat: 開始', currentStaff.id, currentStaff.name);
   await loadChannels();
-  console.log('initChat: loadChannels後', channels.length, '件');
   await ensureSelfChannel();
-  console.log('initChat: ensureSelfChannel後', channels.length, '件');
   await ensureGroupMembership();
-  console.log('initChat: ensureGroupMembership後', channels.length, '件');
   await loadUnreadCounts();
   updateUnreadBadge();
   subscribeRealtime();
@@ -198,28 +197,23 @@ export function destroyChat() {
   isOpen = false;
 }
 
-// --- Toggle Sidebar ---
+// ===== Toggle Sidebar =====
 
 export function toggleChat() {
   isOpen = !isOpen;
   const sidebar = document.getElementById('chat-sidebar');
   const overlay = document.getElementById('chat-sidebar-overlay');
   const fab = document.getElementById('chat-fab');
-
   if (sidebar) sidebar.classList.toggle('open', isOpen);
   if (overlay) overlay.classList.toggle('active', isOpen);
   if (fab) fab.classList.toggle('chat-fab-hidden', isOpen);
-
   if (isOpen) {
-    if (currentView === 'channel-list') {
-      renderChannelList();
-    } else {
-      renderMessageThread();
-    }
+    if (currentView === 'channel-list') renderChannelList();
+    else renderMessageThread();
   }
 }
 
-// --- Channel Navigation ---
+// ===== Channel Navigation =====
 
 export async function openChannel(channelId) {
   currentChannelId = channelId;
@@ -237,33 +231,24 @@ export function backToChannelList() {
   currentChannelId = null;
   messages = [];
   loadChannels().then(() => {
-    loadUnreadCounts().then(() => {
-      renderChannelList();
-      updateUnreadBadge();
-    });
+    loadUnreadCounts().then(() => { renderChannelList(); updateUnreadBadge(); });
   });
 }
 
-// --- Send Message ---
+// ===== Send Message =====
 
 export async function sendMessage() {
   if (!currentStaff || !currentChannelId) return;
-
   const input = document.getElementById('chat-message-input');
   if (!input) return;
-
   const body = input.value.trim();
   if (!body) return;
-
   input.value = '';
   input.style.height = 'auto';
   input.focus();
 
   const { data: inserted, error } = await supabase.from('chat_messages').insert({
-    channel_id: currentChannelId,
-    sender_id: currentStaff.id,
-    message_type: 'text',
-    body,
+    channel_id: currentChannelId, sender_id: currentStaff.id, message_type: 'text', body,
   }).select().single();
 
   if (error) {
@@ -272,7 +257,6 @@ export async function sendMessage() {
     input.value = body;
     return;
   }
-
   if (inserted && !messages.find(m => m.id === inserted.id)) {
     messages.push(inserted);
     appendMessageToThread(inserted);
@@ -283,7 +267,6 @@ export async function sendMessage() {
 
 export async function sendTaskMessage(targetStaffId, refType, refId, refLabel, body) {
   if (!currentStaff) return;
-
   let channelId;
   if (targetStaffId) {
     channelId = await ensureDmChannel(targetStaffId);
@@ -292,33 +275,26 @@ export async function sendTaskMessage(targetStaffId, refType, refId, refLabel, b
     if (!group) return;
     channelId = group.id;
   }
-
   if (!channelId) return;
-
   const { error } = await supabase.from('chat_messages').insert({
-    channel_id: channelId,
-    sender_id: currentStaff.id,
-    message_type: 'task',
-    body,
+    channel_id: channelId, sender_id: currentStaff.id, message_type: 'task', body,
     metadata: { ref_type: refType, ref_id: refId, ref_label: refLabel, action: 'assign' },
   });
-
-  if (error) {
-    console.error('タスクメッセージ送信エラー:', error);
-  }
+  if (error) console.error('タスクメッセージ送信エラー:', error);
 }
 
-// --- Open Reference from Chat ---
+// ===== Open Reference from Chat =====
 
 export function openRefFromChat(refType, refId) {
-  if (refType === 'application') {
-    window.memberApp.showApplicationDetail(refId);
-  } else if (refType === 'trial') {
-    window.memberApp.showTrialDetail(refId);
-  }
+  if (refType === 'member') window.memberApp.showDetail(refId);
+  else if (refType === 'application') window.memberApp.showApplicationDetail(refId);
+  else if (refType === 'trial') window.memberApp.showTrialDetail(refId);
+  else if (refType === 'transfer') window.memberApp.showTransferDetail(refId);
+  else if (refType === 'staff') window.memberApp.showStaffDetail(refId);
+  else if (refType === 'classroom') window.memberApp.switchTab('master');
 }
 
-// --- Open DM with Staff ---
+// ===== Open DM with Staff =====
 
 export async function openDmWithStaff(staffId) {
   const channelId = await ensureDmChannel(staffId);
@@ -328,202 +304,107 @@ export async function openDmWithStaff(staffId) {
   }
 }
 
-// --- Data Loading ---
+// ===== Data Loading =====
 
 async function loadChannels() {
   if (!currentStaff) return;
-
   const { data: memberships, error: memErr } = await supabase
-    .from('chat_channel_members')
-    .select('channel_id')
-    .eq('staff_id', currentStaff.id);
-
-  if (memErr) {
-    console.error('chat_channel_members 取得エラー:', memErr);
-    channels = [];
-    return;
-  }
-
-  if (!memberships || memberships.length === 0) {
-    channels = [];
-    return;
-  }
-
+    .from('chat_channel_members').select('channel_id').eq('staff_id', currentStaff.id);
+  if (memErr) { console.error('chat_channel_members 取得エラー:', memErr); channels = []; return; }
+  if (!memberships || memberships.length === 0) { channels = []; return; }
   const channelIds = memberships.map(m => m.channel_id);
-
   const { data, error: chErr } = await supabase
-    .from('chat_channels')
-    .select('*')
-    .in('id', channelIds)
-    .order('created_at', { ascending: true });
-
-  if (chErr) {
-    console.error('chat_channels 取得エラー:', chErr);
-  }
+    .from('chat_channels').select('*').in('id', channelIds).order('created_at', { ascending: true });
+  if (chErr) console.error('chat_channels 取得エラー:', chErr);
   channels = data || [];
-
   await loadDmPartnerNames();
 }
 
 async function loadMessages(channelId) {
-  const { data } = await supabase
-    .from('chat_messages')
-    .select('*')
-    .eq('channel_id', channelId)
-    .order('created_at', { ascending: true })
-    .limit(MESSAGE_LIMIT);
-
+  const { data } = await supabase.from('chat_messages').select('*')
+    .eq('channel_id', channelId).order('created_at', { ascending: true }).limit(MESSAGE_LIMIT);
   messages = data || [];
 }
 
 async function markAsRead(channelId) {
   if (!currentStaff) return;
-
-  await supabase
-    .from('chat_channel_members')
+  await supabase.from('chat_channel_members')
     .update({ last_read_at: new Date().toISOString() })
-    .eq('channel_id', channelId)
-    .eq('staff_id', currentStaff.id);
+    .eq('channel_id', channelId).eq('staff_id', currentStaff.id);
 }
 
 export async function loadUnreadCounts() {
   if (!currentStaff) return;
-
-  const { data: memberships } = await supabase
-    .from('chat_channel_members')
-    .select('channel_id, last_read_at')
-    .eq('staff_id', currentStaff.id);
-
+  const { data: memberships } = await supabase.from('chat_channel_members')
+    .select('channel_id, last_read_at').eq('staff_id', currentStaff.id);
   if (!memberships) return;
-
   const counts = {};
   for (const m of memberships) {
-    const { count } = await supabase
-      .from('chat_messages')
+    const { count } = await supabase.from('chat_messages')
       .select('*', { count: 'exact', head: true })
-      .eq('channel_id', m.channel_id)
-      .gt('created_at', m.last_read_at)
-      .neq('sender_id', currentStaff.id);
-
+      .eq('channel_id', m.channel_id).gt('created_at', m.last_read_at).neq('sender_id', currentStaff.id);
     counts[m.channel_id] = count || 0;
   }
-
   unreadCounts = counts;
 }
 
-// --- Channel Management ---
+// ===== Channel Management =====
 
 async function ensureSelfChannel() {
   if (!currentStaff) return;
-
   const slug = `self-${currentStaff.id}`;
-  const existing = channels.find(c => c.slug === slug);
-  if (existing) return;
-
+  if (channels.find(c => c.slug === slug)) return;
   const { data: existingChannel, error: selfErr } = await supabase
-    .from('chat_channels')
-    .select('id')
-    .eq('slug', slug)
-    .single();
-
-  if (selfErr && selfErr.code !== 'PGRST116') {
-    console.error('self channel 検索エラー:', selfErr);
-  }
-
+    .from('chat_channels').select('id').eq('slug', slug).single();
+  if (selfErr && selfErr.code !== 'PGRST116') console.error('self channel 検索エラー:', selfErr);
   let channelId;
-  if (existingChannel) {
-    channelId = existingChannel.id;
-  } else {
-    const { data: newChannel } = await supabase
-      .from('chat_channels')
-      .insert({ type: 'self', name: '自分メモ', slug, created_by: currentStaff.id })
-      .select()
-      .single();
-
+  if (existingChannel) { channelId = existingChannel.id; }
+  else {
+    const { data: newChannel } = await supabase.from('chat_channels')
+      .insert({ type: 'self', name: '自分メモ', slug, created_by: currentStaff.id }).select().single();
     if (!newChannel) return;
     channelId = newChannel.id;
   }
-
-  await supabase.from('chat_channel_members').upsert({
-    channel_id: channelId,
-    staff_id: currentStaff.id,
-  }, { onConflict: 'channel_id,staff_id' });
-
+  await supabase.from('chat_channel_members').upsert({ channel_id: channelId, staff_id: currentStaff.id }, { onConflict: 'channel_id,staff_id' });
   await loadChannels();
 }
 
 async function ensureGroupMembership() {
   if (!currentStaff) return;
-
   const { data: groupChannel, error: grpErr } = await supabase
-    .from('chat_channels')
-    .select('id')
-    .eq('slug', 'jimukyoku')
-    .single();
-
-  if (grpErr) {
-    console.error('jimukyoku channel 検索エラー:', grpErr);
-  }
+    .from('chat_channels').select('id').eq('slug', 'jimukyoku').single();
+  if (grpErr) console.error('jimukyoku channel 検索エラー:', grpErr);
   if (!groupChannel) return;
-
-  await supabase.from('chat_channel_members').upsert({
-    channel_id: groupChannel.id,
-    staff_id: currentStaff.id,
-  }, { onConflict: 'channel_id,staff_id' });
-
+  await supabase.from('chat_channel_members').upsert({ channel_id: groupChannel.id, staff_id: currentStaff.id }, { onConflict: 'channel_id,staff_id' });
   await loadChannels();
 }
 
 async function ensureDmChannel(otherStaffId) {
   if (!currentStaff || otherStaffId === currentStaff.id) return null;
-
   const myDms = channels.filter(c => c.type === 'dm');
   for (const dm of myDms) {
-    const { data: otherMember } = await supabase
-      .from('chat_channel_members')
-      .select('staff_id')
-      .eq('channel_id', dm.id)
-      .eq('staff_id', otherStaffId)
-      .single();
-
+    const { data: otherMember } = await supabase.from('chat_channel_members')
+      .select('staff_id').eq('channel_id', dm.id).eq('staff_id', otherStaffId).single();
     if (otherMember) return dm.id;
   }
-
-  const { data: newChannel } = await supabase
-    .from('chat_channels')
-    .insert({
-      type: 'dm',
-      name: '',
-      slug: '',
-      created_by: currentStaff.id,
-    })
-    .select()
-    .single();
-
+  const { data: newChannel } = await supabase.from('chat_channels')
+    .insert({ type: 'dm', name: '', slug: '', created_by: currentStaff.id }).select().single();
   if (!newChannel) return null;
-
   await supabase.from('chat_channel_members').insert([
     { channel_id: newChannel.id, staff_id: currentStaff.id },
     { channel_id: newChannel.id, staff_id: otherStaffId },
   ]);
-
   await loadChannels();
   return newChannel.id;
 }
 
-// --- DM Partner Cache ---
+// ===== DM Partner Cache =====
 
 async function loadDmPartnerNames() {
   if (!currentStaff) return;
-  const dmChannels = channels.filter(c => c.type === 'dm');
-
-  for (const ch of dmChannels) {
-    const { data: members } = await supabase
-      .from('chat_channel_members')
-      .select('staff_id')
-      .eq('channel_id', ch.id)
-      .neq('staff_id', currentStaff.id);
-
+  for (const ch of channels.filter(c => c.type === 'dm')) {
+    const { data: members } = await supabase.from('chat_channel_members')
+      .select('staff_id').eq('channel_id', ch.id).neq('staff_id', currentStaff.id);
     if (members && members.length > 0) {
       const partner = getStaffById(members[0].staff_id);
       dmPartnerNames[ch.id] = partner ? partner.name : '不明';
@@ -539,22 +420,16 @@ function getChannelDisplayName(ch) {
   return ch.name || 'チャット';
 }
 
-// --- Realtime ---
+// ===== Realtime =====
 
 function subscribeRealtime() {
   unsubscribeRealtime();
-
   realtimeSubscription = supabase
     .channel('chat-messages-rt')
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'chat_messages',
-    }, handleNewMessage)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, handleNewMessage)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, handleUpdatedMessage)
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        stopPollingFallback();
-      }
+      if (status === 'SUBSCRIBED') stopPollingFallback();
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn('Chat realtime failed, using polling fallback');
         startPollingFallback();
@@ -563,21 +438,16 @@ function subscribeRealtime() {
 }
 
 function unsubscribeRealtime() {
-  if (realtimeSubscription) {
-    supabase.removeChannel(realtimeSubscription);
-    realtimeSubscription = null;
-  }
+  if (realtimeSubscription) { supabase.removeChannel(realtimeSubscription); realtimeSubscription = null; }
 }
 
 function handleNewMessage(payload) {
   const msg = payload.new;
   if (!msg || !currentStaff) return;
-
   const myChannelIds = channels.map(c => c.id);
   if (!myChannelIds.includes(msg.channel_id)) {
     loadChannels().then(() => {
-      const ids = channels.map(c => c.id);
-      if (ids.includes(msg.channel_id)) {
+      if (channels.map(c => c.id).includes(msg.channel_id)) {
         unreadCounts[msg.channel_id] = (unreadCounts[msg.channel_id] || 0) + 1;
         updateUnreadBadge();
         if (currentView === 'channel-list' && isOpen) renderChannelList();
@@ -585,7 +455,6 @@ function handleNewMessage(payload) {
     });
     return;
   }
-
   if (msg.channel_id === currentChannelId && isOpen) {
     if (messages.find(m => m.id === msg.id)) return;
     messages.push(msg);
@@ -601,7 +470,30 @@ function handleNewMessage(payload) {
   }
 }
 
-// --- Polling Fallback ---
+function handleUpdatedMessage(payload) {
+  const updated = payload.new;
+  if (!updated || !currentStaff) return;
+  if (updated.channel_id !== currentChannelId) return;
+
+  const idx = messages.findIndex(m => m.id === updated.id);
+  if (idx === -1) return;
+  messages[idx] = updated;
+
+  // Re-render the specific message element
+  const el = document.querySelector(`[data-msg-id="${updated.id}"]`);
+  if (el) {
+    const grouped = groupMessages(messages);
+    const item = grouped.find(g => g.type === 'message' && g.msg.id === updated.id);
+    if (item) {
+      const div = document.createElement('div');
+      div.innerHTML = renderSlackMessage(item.msg, item.grouped);
+      const newEl = div.firstElementChild;
+      if (newEl) el.replaceWith(newEl);
+    }
+  }
+}
+
+// ===== Polling Fallback =====
 
 function startPollingFallback() {
   if (pollTimer) return;
@@ -616,13 +508,10 @@ function startPollingFallback() {
 }
 
 function stopPollingFallback() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
-// ===== Rendering: Channel List (Slack-style) =====
+// ===== Rendering: Channel List =====
 
 function renderChannelList() {
   const body = document.getElementById('chat-sidebar-body');
@@ -637,8 +526,6 @@ function renderChannelList() {
   const dmChannels = channels.filter(c => c.type === 'dm');
 
   let html = '';
-
-  // 1. Pinned self-memo
   if (selfChannel) {
     const unread = unreadCounts[selfChannel.id] || 0;
     html += `
@@ -649,58 +536,42 @@ function renderChannelList() {
         ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
       </div>`;
   }
-
-  // 2. Channels section
   html += renderSection('channels', 'チャンネル', groupChannels);
-
-  // 3. DM section (with + button)
   html += renderSection('dms', 'ダイレクトメッセージ', dmChannels, true);
-
   body.innerHTML = `<div class="chat-channel-list">${html}</div>`;
 }
 
 function renderSection(key, label, items, showAddBtn = false) {
   const collapsed = sectionCollapsed[key];
   const chevron = collapsed ? 'chevron_right' : 'expand_more';
-
   const addBtnHtml = showAddBtn
-    ? `<button class="chat-new-dm-btn" onclick="event.stopPropagation();window.memberApp.chatShowNewDmPicker()" title="新しいメッセージ">
-        <span class="material-icons">add</span>
-      </button>`
-    : '';
+    ? `<button class="chat-new-dm-btn" onclick="event.stopPropagation();window.memberApp.chatShowNewDmPicker()" title="新しいメッセージ"><span class="material-icons">add</span></button>` : '';
 
   const itemsHtml = items.map(ch => {
     const unread = unreadCounts[ch.id] || 0;
     const displayName = getChannelDisplayName(ch);
     const isActive = ch.id === currentChannelId;
-
     if (ch.type === 'group') {
-      return `
-        <div class="chat-channel-item ${isActive ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
+      return `<div class="chat-channel-item ${isActive ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
              onclick="window.memberApp.chatOpenChannel('${ch.id}')">
           <span class="chat-channel-hash">#</span>
           <span class="chat-channel-name">${escapeHtml(displayName)}</span>
           ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
         </div>`;
-    } else {
-      const partnerId = dmPartnerIds[ch.id];
-      return `
-        <div class="chat-channel-item ${isActive ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
-             onclick="window.memberApp.chatOpenChannel('${ch.id}')">
-          ${renderAvatar(partnerId, 24)}
-          <span class="chat-channel-name">${escapeHtml(displayName)}</span>
-          ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
-        </div>`;
     }
+    const partnerId = dmPartnerIds[ch.id];
+    return `<div class="chat-channel-item ${isActive ? 'chat-channel-active' : ''} ${unread > 0 ? 'chat-channel-unread' : ''}"
+           onclick="window.memberApp.chatOpenChannel('${ch.id}')">
+        ${renderAvatar(partnerId, 24)}
+        <span class="chat-channel-name">${escapeHtml(displayName)}</span>
+        ${unread > 0 ? `<span class="chat-unread-dot">${unread}</span>` : ''}
+      </div>`;
   }).join('');
 
-  return `
-    <div class="chat-section">
-      <div class="chat-section-header ${collapsed ? 'collapsed' : ''}"
-           onclick="window.memberApp.chatToggleSection('${key}')">
+  return `<div class="chat-section">
+      <div class="chat-section-header ${collapsed ? 'collapsed' : ''}" onclick="window.memberApp.chatToggleSection('${key}')">
         <span class="material-icons chat-section-chevron">${chevron}</span>
-        <span class="chat-section-label">${label}</span>
-        ${addBtnHtml}
+        <span class="chat-section-label">${label}</span>${addBtnHtml}
       </div>
       <div class="chat-section-items ${collapsed ? 'collapsed' : ''}">
         ${itemsHtml || '<div class="chat-section-empty">なし</div>'}
@@ -708,7 +579,7 @@ function renderSection(key, label, items, showAddBtn = false) {
     </div>`;
 }
 
-// ===== Rendering: Message Thread (Slack-style) =====
+// ===== Rendering: Message Thread =====
 
 function renderMessageThread() {
   const body = document.getElementById('chat-sidebar-body');
@@ -721,19 +592,13 @@ function renderMessageThread() {
   if (title) title.textContent = channelName;
   if (backBtn) backBtn.style.display = '';
 
-  // Group messages
   const grouped = groupMessages(messages);
-
   const messagesHtml = grouped.map(item => {
-    if (item.type === 'date-separator') {
-      return `<div class="chat-date-separator"><span>${escapeHtml(item.label)}</span></div>`;
-    }
+    if (item.type === 'date-separator') return `<div class="chat-date-separator"><span>${escapeHtml(item.label)}</span></div>`;
     return renderSlackMessage(item.msg, item.grouped);
   }).join('');
 
-  const placeholder = channel
-    ? `メッセージを送信 ${channel.type === 'group' ? '#' : ''}${channelName}`
-    : 'メッセージを入力...';
+  const placeholder = channel ? `メッセージを送信 ${channel.type === 'group' ? '#' : ''}${channelName}` : 'メッセージを入力...';
 
   body.innerHTML = `
     <div class="chat-thread-container">
@@ -742,6 +607,14 @@ function renderMessageThread() {
       </div>
       <div class="chat-input-area">
         <div class="chat-input-container">
+          <div class="chat-input-toolbar">
+            <button class="chat-toolbar-btn" title="ファイル添付" onclick="window.memberApp.chatAttachFile()">
+              <span class="material-icons">attach_file</span>
+            </button>
+            <button class="chat-toolbar-btn" title="業務リンク" onclick="window.memberApp.chatOpenLinkPicker()">
+              <span class="material-icons">link</span>
+            </button>
+          </div>
           <textarea id="chat-message-input" class="chat-input" rows="1"
             placeholder="${escapeHtml(placeholder)}"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();window.memberApp.chatSendMessage()}"></textarea>
@@ -752,7 +625,6 @@ function renderMessageThread() {
       </div>
     </div>`;
 
-  // Auto-resize textarea
   const textarea = document.getElementById('chat-message-input');
   if (textarea) {
     textarea.addEventListener('input', () => {
@@ -760,40 +632,78 @@ function renderMessageThread() {
       textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
     });
   }
-
   scrollToBottom();
 }
 
-// --- Slack-style Message Rendering ---
+// ===== Message Rendering =====
+
+function buildMsgActions(msg) {
+  const isOwn = msg.sender_id === currentStaff?.id;
+  if (msg.is_deleted || !isOwn) return '';
+  const isText = msg.message_type === 'text';
+  let actions = '';
+  if (isText) {
+    actions += `<button class="chat-action-btn" title="編集" onclick="event.stopPropagation();window.memberApp.chatEditMessage('${msg.id}')"><span class="material-icons">edit</span></button>`;
+  }
+  actions += `<button class="chat-action-btn" title="削除" onclick="event.stopPropagation();window.memberApp.chatDeleteMessage('${msg.id}')"><span class="material-icons">delete</span></button>`;
+  return `<div class="chat-msg-actions">${actions}</div>`;
+}
 
 function renderSlackMessage(msg, isGrouped) {
+  if (msg.is_deleted) return renderDeletedMessage(msg, isGrouped);
   if (msg.message_type === 'system') return renderSystemDivider(msg);
   if (msg.message_type === 'task') return renderTaskCard(msg);
+  if (msg.message_type === 'file') return renderFileMessage(msg, isGrouped);
+  if (msg.message_type === 'link') return renderLinkCard(msg, isGrouped);
 
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
+  const editedTag = msg.edited_at ? '<span class="chat-msg-edited">(編集済み)</span>' : '';
+  const actions = buildMsgActions(msg);
 
   if (isGrouped) {
-    return `
-      <div class="chat-msg chat-msg--grouped">
+    return `<div class="chat-msg chat-msg--grouped" data-msg-id="${msg.id}">
         <div class="chat-msg-avatar-spacer"></div>
         <div class="chat-msg-content">
-          <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</div>
+          <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}${editedTag}</div>
         </div>
         <span class="chat-msg-hover-time">${time}</span>
+        ${actions}
       </div>`;
   }
 
-  return `
-    <div class="chat-msg">
+  return `<div class="chat-msg" data-msg-id="${msg.id}">
       <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
       <div class="chat-msg-content">
         <div class="chat-msg-header">
           <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
           <span class="chat-msg-time">${time}</span>
         </div>
-        <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</div>
+        <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}${editedTag}</div>
+      </div>
+      ${actions}
+    </div>`;
+}
+
+function renderDeletedMessage(msg, isGrouped) {
+  if (isGrouped) {
+    return `<div class="chat-msg chat-msg--grouped chat-msg--deleted" data-msg-id="${msg.id}">
+        <div class="chat-msg-avatar-spacer"></div>
+        <div class="chat-msg-content"><div class="chat-msg-body chat-msg-deleted-text">このメッセージは削除されました</div></div>
+      </div>`;
+  }
+  const sender = getStaffById(msg.sender_id);
+  const senderName = sender ? sender.name : '不明';
+  const time = formatChatTime(msg.created_at);
+  return `<div class="chat-msg chat-msg--deleted" data-msg-id="${msg.id}">
+      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-header">
+          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
+          <span class="chat-msg-time">${time}</span>
+        </div>
+        <div class="chat-msg-body chat-msg-deleted-text">このメッセージは削除されました</div>
       </div>
     </div>`;
 }
@@ -803,12 +713,8 @@ function renderTaskCard(msg) {
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
-  const refLabel = meta.ref_label || '';
-  const refType = meta.ref_type || '';
-  const refId = meta.ref_id || '';
-
-  return `
-    <div class="chat-msg">
+  const actions = buildMsgActions(msg);
+  return `<div class="chat-msg" data-msg-id="${msg.id}">
       <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
       <div class="chat-msg-content">
         <div class="chat-msg-header">
@@ -818,36 +724,111 @@ function renderTaskCard(msg) {
         <div class="chat-task-card">
           <div class="chat-task-header">
             <span class="material-icons" style="font-size:18px;color:var(--primary-color)">assignment</span>
-            <span class="chat-task-label">${escapeHtml(refLabel)}</span>
+            <span class="chat-task-label">${escapeHtml(meta.ref_label || '')}</span>
           </div>
           <div class="chat-task-body">${escapeHtml(msg.body)}</div>
-          ${refType && refId ? `
-            <button class="btn btn-secondary chat-task-btn"
-                    onclick="window.memberApp.openRefFromChat('${escapeHtml(refType)}', '${escapeHtml(refId)}')">
-              <span class="material-icons" style="font-size:16px">open_in_new</span>詳細を開く
-            </button>` : ''}
+          ${meta.ref_type && meta.ref_id ? `<button class="btn btn-secondary chat-task-btn" onclick="window.memberApp.openRefFromChat('${escapeHtml(meta.ref_type)}','${escapeHtml(meta.ref_id)}')"><span class="material-icons" style="font-size:16px">open_in_new</span>詳細を開く</button>` : ''}
         </div>
       </div>
+      ${actions}
+    </div>`;
+}
+
+function renderFileMessage(msg, isGrouped) {
+  const meta = msg.metadata || {};
+  const isImage = meta.file_type && meta.file_type.startsWith('image/');
+  const sender = getStaffById(msg.sender_id);
+  const senderName = sender ? sender.name : '不明';
+  const time = formatChatTime(msg.created_at);
+  const actions = buildMsgActions(msg);
+
+  let fileContent;
+  if (isImage) {
+    fileContent = `<div class="chat-file-image" onclick="window.open('${escapeHtml(meta.file_url)}','_blank')">
+        <img src="${escapeHtml(meta.file_url)}" alt="${escapeHtml(meta.file_name || '')}" loading="lazy">
+      </div>`;
+  } else {
+    fileContent = `<a class="chat-file-card" href="${escapeHtml(meta.file_url)}" target="_blank" rel="noopener">
+        <span class="material-icons chat-file-icon">${getFileIcon(meta.file_type)}</span>
+        <div class="chat-file-info">
+          <span class="chat-file-name">${escapeHtml(meta.file_name || 'ファイル')}</span>
+          <span class="chat-file-size">${formatFileSize(meta.file_size)}</span>
+        </div>
+        <span class="material-icons chat-file-download">download</span>
+      </a>`;
+  }
+
+  if (isGrouped) {
+    return `<div class="chat-msg chat-msg--grouped" data-msg-id="${msg.id}">
+        <div class="chat-msg-avatar-spacer"></div>
+        <div class="chat-msg-content">${fileContent}</div>
+        <span class="chat-msg-hover-time">${time}</span>
+        ${actions}
+      </div>`;
+  }
+  return `<div class="chat-msg" data-msg-id="${msg.id}">
+      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-header">
+          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
+          <span class="chat-msg-time">${time}</span>
+        </div>
+        ${fileContent}
+      </div>
+      ${actions}
+    </div>`;
+}
+
+function renderLinkCard(msg, isGrouped) {
+  const meta = msg.metadata || {};
+  const sender = getStaffById(msg.sender_id);
+  const senderName = sender ? sender.name : '不明';
+  const time = formatChatTime(msg.created_at);
+  const actions = buildMsgActions(msg);
+  const info = REF_TYPE_MAP[meta.ref_type] || { label: '', icon: 'link' };
+
+  const linkContent = `<div class="chat-link-card" onclick="window.memberApp.openRefFromChat('${escapeHtml(meta.ref_type || '')}','${escapeHtml(meta.ref_id || '')}')">
+      <div class="chat-link-card-icon"><span class="material-icons">${info.icon}</span></div>
+      <div class="chat-link-card-info">
+        <span class="chat-link-card-type">${escapeHtml(info.label)}</span>
+        <span class="chat-link-card-label">${escapeHtml(meta.ref_label || '')}</span>
+      </div>
+      <span class="material-icons" style="font-size:16px;color:var(--gray-400);flex-shrink:0">open_in_new</span>
+    </div>`;
+
+  if (isGrouped) {
+    return `<div class="chat-msg chat-msg--grouped" data-msg-id="${msg.id}">
+        <div class="chat-msg-avatar-spacer"></div>
+        <div class="chat-msg-content">${linkContent}</div>
+        <span class="chat-msg-hover-time">${time}</span>
+        ${actions}
+      </div>`;
+  }
+  return `<div class="chat-msg" data-msg-id="${msg.id}">
+      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
+      <div class="chat-msg-content">
+        <div class="chat-msg-header">
+          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
+          <span class="chat-msg-time">${time}</span>
+        </div>
+        ${linkContent}
+      </div>
+      ${actions}
     </div>`;
 }
 
 function renderSystemDivider(msg) {
-  return `
-    <div class="chat-system-divider">
-      <span>${escapeHtml(msg.body)}</span>
-    </div>`;
+  return `<div class="chat-system-divider" data-msg-id="${msg.id}"><span>${escapeHtml(msg.body)}</span></div>`;
 }
 
-// --- Append Message (Realtime) ---
+// ===== Append Message (Realtime) =====
 
 function appendMessageToThread(msg) {
   const scroll = document.getElementById('chat-messages-scroll');
   if (!scroll) return;
-
   const empty = scroll.querySelector('.chat-empty');
   if (empty) empty.remove();
 
-  // Check if date separator needed
   const prevMsg = messages.length >= 2 ? messages[messages.length - 2] : null;
   const msgDate = new Date(msg.created_at);
   const prevDate = prevMsg ? new Date(prevMsg.created_at) : null;
@@ -859,14 +840,10 @@ function appendMessageToThread(msg) {
     scroll.appendChild(sep);
   }
 
-  // Determine if grouped
   let isGrouped = false;
-  if (prevMsg &&
-      msg.message_type === 'text' &&
-      prevMsg.message_type === 'text' &&
-      msg.sender_id === prevMsg.sender_id &&
-      msgDate.toDateString() === (prevDate ? prevDate.toDateString() : '') &&
-      prevDate && (msgDate - prevDate) / 60000 < 5) {
+  if (prevMsg && msg.message_type === 'text' && prevMsg.message_type === 'text' &&
+      msg.sender_id === prevMsg.sender_id && !prevMsg.is_deleted &&
+      prevDate && msgDate.toDateString() === prevDate.toDateString() && (msgDate - prevDate) / 60000 < 5) {
     isGrouped = true;
   }
 
@@ -883,45 +860,354 @@ function scrollToBottom() {
   }, 50);
 }
 
-// --- Unread Badge ---
+// ===== Unread Badge =====
 
 export function updateUnreadBadge() {
   const badge = document.getElementById('chat-unread-badge');
   if (!badge) return;
-
   const total = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
-  if (total > 0) {
-    badge.textContent = total > 99 ? '99+' : String(total);
-    badge.style.display = 'flex';
-  } else {
-    badge.style.display = 'none';
+  if (total > 0) { badge.textContent = total > 99 ? '99+' : String(total); badge.style.display = 'flex'; }
+  else { badge.style.display = 'none'; }
+}
+
+// ===== Message Edit =====
+
+function chatEditMessage(msgId) {
+  const msg = messages.find(m => m.id === msgId);
+  if (!msg || msg.sender_id !== currentStaff?.id || msg.message_type !== 'text') return;
+  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  if (!el) return;
+  const bodyEl = el.querySelector('.chat-msg-body');
+  if (!bodyEl) return;
+
+  bodyEl.outerHTML = `<div class="chat-msg-body chat-msg-editing">
+    <textarea class="chat-edit-textarea" id="chat-edit-${msgId}">${escapeHtml(msg.body)}</textarea>
+    <div class="chat-edit-actions">
+      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelEdit('${msgId}')">キャンセル</button>
+      <button class="btn btn-primary btn-sm" onclick="window.memberApp.chatSaveEdit('${msgId}')">保存</button>
+    </div>
+    <div class="chat-edit-hint">Escでキャンセル・Ctrl+Enterで保存</div>
+  </div>`;
+
+  // Hide actions during editing
+  const actionsEl = el.querySelector('.chat-msg-actions');
+  if (actionsEl) actionsEl.style.display = 'none';
+
+  const textarea = document.getElementById(`chat-edit-${msgId}`);
+  if (textarea) {
+    textarea.focus();
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') chatCancelEdit(msgId);
+      if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); chatSaveEdit(msgId); }
+    });
   }
 }
 
-// --- New DM Picker ---
+async function chatSaveEdit(msgId) {
+  const textarea = document.getElementById(`chat-edit-${msgId}`);
+  if (!textarea) return;
+  const newBody = textarea.value.trim();
+  if (!newBody) { showToast('メッセージを入力してください', 'error'); return; }
+
+  const { error } = await supabase.from('chat_messages')
+    .update({ body: newBody, edited_at: new Date().toISOString() }).eq('id', msgId);
+  if (error) { console.error('編集エラー:', error); showToast('編集に失敗しました', 'error'); return; }
+
+  const msg = messages.find(m => m.id === msgId);
+  if (msg) { msg.body = newBody; msg.edited_at = new Date().toISOString(); }
+
+  reRenderMessage(msgId);
+}
+
+function chatCancelEdit(msgId) {
+  reRenderMessage(msgId);
+}
+
+function reRenderMessage(msgId) {
+  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  if (!el) return;
+  const grouped = groupMessages(messages);
+  const item = grouped.find(g => g.type === 'message' && g.msg.id === msgId);
+  if (!item) return;
+  const div = document.createElement('div');
+  div.innerHTML = renderSlackMessage(item.msg, item.grouped);
+  const newEl = div.firstElementChild;
+  if (newEl) el.replaceWith(newEl);
+}
+
+// ===== Message Delete =====
+
+function chatDeleteMessage(msgId) {
+  const msg = messages.find(m => m.id === msgId);
+  if (!msg || msg.sender_id !== currentStaff?.id) return;
+  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  if (!el) return;
+  const bodyEl = el.querySelector('.chat-msg-body') || el.querySelector('.chat-task-card') || el.querySelector('.chat-file-image') || el.querySelector('.chat-file-card') || el.querySelector('.chat-link-card');
+  if (!bodyEl) return;
+
+  const origHtml = bodyEl.outerHTML;
+  bodyEl.outerHTML = `<div class="chat-delete-confirm">
+    <span>このメッセージを削除しますか？</span>
+    <div class="chat-delete-actions">
+      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelDelete('${msgId}')">キャンセル</button>
+      <button class="btn btn-danger btn-sm" onclick="window.memberApp.chatConfirmDelete('${msgId}')">削除する</button>
+    </div>
+  </div>`;
+
+  // Store for cancel restore
+  el.dataset.origHtml = origHtml;
+  const actionsEl = el.querySelector('.chat-msg-actions');
+  if (actionsEl) actionsEl.style.display = 'none';
+}
+
+async function chatConfirmDelete(msgId) {
+  const { error } = await supabase.from('chat_messages').update({ is_deleted: true }).eq('id', msgId);
+  if (error) { console.error('削除エラー:', error); showToast('削除に失敗しました', 'error'); return; }
+  const msg = messages.find(m => m.id === msgId);
+  if (msg) msg.is_deleted = true;
+  reRenderMessage(msgId);
+}
+
+function chatCancelDelete(msgId) {
+  reRenderMessage(msgId);
+}
+
+// ===== File Upload =====
+
+function chatAttachFile() {
+  const input = document.getElementById('chat-file-input');
+  if (!input) return;
+  input.value = '';
+  input.onchange = handleFileSelected;
+  input.click();
+}
+
+async function handleFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.size > MAX_FILE_SIZE) {
+    showToast('ファイルサイズは5MB以下にしてください', 'error');
+    return;
+  }
+  if (!currentStaff || !currentChannelId) return;
+
+  showUploadProgress();
+  const path = `${currentChannelId}/${Date.now()}_${file.name}`;
+
+  try {
+    const { error: uploadError } = await supabase.storage.from('chat-attachments').upload(path, file);
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage.from('chat-attachments').getPublicUrl(path);
+    const fileUrl = urlData.publicUrl;
+
+    const { data: inserted, error: msgError } = await supabase.from('chat_messages').insert({
+      channel_id: currentChannelId, sender_id: currentStaff.id, message_type: 'file', body: file.name,
+      metadata: { file_url: fileUrl, file_name: file.name, file_size: file.size, file_type: file.type },
+    }).select().single();
+
+    if (msgError) throw msgError;
+    if (inserted && !messages.find(m => m.id === inserted.id)) {
+      messages.push(inserted);
+      appendMessageToThread(inserted);
+      scrollToBottom();
+      markAsRead(currentChannelId);
+    }
+  } catch (err) {
+    console.error('ファイルアップロードエラー:', err);
+    showToast('ファイルのアップロードに失敗しました', 'error');
+  } finally {
+    hideUploadProgress();
+  }
+}
+
+function showUploadProgress() {
+  const inputArea = document.querySelector('.chat-input-area');
+  if (!inputArea) return;
+  const bar = document.createElement('div');
+  bar.className = 'chat-upload-progress';
+  bar.id = 'chat-upload-progress';
+  bar.innerHTML = `<div class="chat-upload-progress-bar"></div><span class="chat-upload-progress-text">アップロード中...</span>`;
+  inputArea.insertBefore(bar, inputArea.firstChild);
+}
+
+function hideUploadProgress() {
+  const bar = document.getElementById('chat-upload-progress');
+  if (bar) bar.remove();
+}
+
+// ===== Business Link Picker =====
+
+function chatOpenLinkPicker() {
+  const body = document.getElementById('chat-sidebar-body');
+  if (!body) return;
+  const existing = document.getElementById('chat-link-picker');
+  if (existing) { existing.remove(); return; }
+
+  const categories = Object.entries(REF_TYPE_MAP).map(([key, val]) =>
+    `<button class="chat-link-category-btn" onclick="window.memberApp.chatSelectLinkCategory('${key}')">
+      <span class="material-icons">${val.icon}</span><span>${val.label}</span>
+    </button>`
+  ).join('');
+
+  const picker = document.createElement('div');
+  picker.className = 'chat-link-picker';
+  picker.id = 'chat-link-picker';
+  picker.innerHTML = `
+    <div class="chat-link-picker-header">
+      <span>業務リンクを挿入</span>
+      <button class="btn-icon" onclick="window.memberApp.chatCloseLinkPicker()"><span class="material-icons">close</span></button>
+    </div>
+    <div class="chat-link-picker-body" id="chat-link-picker-body">
+      <div class="chat-link-categories">${categories}</div>
+    </div>`;
+  body.appendChild(picker);
+}
+
+function chatCloseLinkPicker() {
+  const picker = document.getElementById('chat-link-picker');
+  if (picker) picker.remove();
+}
+
+function chatLinkPickerBack() {
+  const pickerBody = document.getElementById('chat-link-picker-body');
+  if (!pickerBody) return;
+  const categories = Object.entries(REF_TYPE_MAP).map(([key, val]) =>
+    `<button class="chat-link-category-btn" onclick="window.memberApp.chatSelectLinkCategory('${key}')">
+      <span class="material-icons">${val.icon}</span><span>${val.label}</span>
+    </button>`
+  ).join('');
+  pickerBody.innerHTML = `<div class="chat-link-categories">${categories}</div>`;
+}
+
+async function chatSelectLinkCategory(category) {
+  const pickerBody = document.getElementById('chat-link-picker-body');
+  if (!pickerBody) return;
+  const info = REF_TYPE_MAP[category] || { label: category, icon: 'link' };
+
+  pickerBody.innerHTML = `
+    <div class="chat-link-search-header">
+      <button class="btn-icon" onclick="window.memberApp.chatLinkPickerBack()"><span class="material-icons">arrow_back</span></button>
+      <span>${info.label}を検索</span>
+    </div>
+    <div class="chat-link-search-input-wrap">
+      <input type="text" id="chat-link-search-input" class="chat-link-search-input"
+        placeholder="名前で検索..." oninput="window.memberApp.chatSearchLinkRecords('${category}',this.value)">
+    </div>
+    <div id="chat-link-search-results" class="chat-link-search-results">
+      <div class="chat-empty" style="padding:20px">読み込み中...</div>
+    </div>`;
+
+  await doSearchLinkRecords(category, '');
+  const input = document.getElementById('chat-link-search-input');
+  if (input) input.focus();
+}
+
+function chatSearchLinkRecords(category, query) {
+  clearTimeout(linkSearchTimeout);
+  linkSearchTimeout = setTimeout(() => doSearchLinkRecords(category, query), 300);
+}
+
+async function doSearchLinkRecords(category, query) {
+  const resultsEl = document.getElementById('chat-link-search-results');
+  if (!resultsEl) return;
+  let records = [];
+  const q = query.trim();
+
+  try {
+    switch (category) {
+      case 'member': {
+        let qb = supabase.from('members').select('id, name, member_number').order('name').limit(30);
+        if (q) qb = qb.ilike('name', `%${q}%`);
+        const { data } = await qb;
+        records = (data || []).map(r => ({ id: r.id, label: `${r.name}${r.member_number ? ` (${r.member_number})` : ''}`, icon: 'person' }));
+        break;
+      }
+      case 'application': {
+        const { data } = await supabase.from('applications').select('id, form_data, type, status').order('created_at', { ascending: false }).limit(30);
+        records = (data || []).filter(r => !q || (r.form_data?.name || '').includes(q))
+          .map(r => ({ id: r.id, label: `${r.form_data?.name || '名前なし'} (${r.type || ''}) [${r.status}]`, icon: 'description' }));
+        break;
+      }
+      case 'trial': {
+        const { data } = await supabase.from('trials').select('id, form_data, status').order('created_at', { ascending: false }).limit(30);
+        records = (data || []).filter(r => !q || (r.form_data?.child_name || r.form_data?.name || '').includes(q))
+          .map(r => ({ id: r.id, label: `${r.form_data?.child_name || r.form_data?.name || '名前なし'} [${r.status}]`, icon: 'sports' }));
+        break;
+      }
+      case 'transfer': {
+        let qb = supabase.from('transfers').select('id, member_name, status, from_class, to_class').order('created_at', { ascending: false }).limit(30);
+        if (q) qb = qb.ilike('member_name', `%${q}%`);
+        const { data } = await qb;
+        records = (data || []).map(r => ({ id: r.id, label: `${r.member_name || '不明'} (${r.from_class}→${r.to_class}) [${r.status}]`, icon: 'swap_horiz' }));
+        break;
+      }
+      case 'staff': {
+        let qb = supabase.from('staff').select('id, name, role').eq('status', '在籍').order('name').limit(30);
+        if (q) qb = qb.ilike('name', `%${q}%`);
+        const { data } = await qb;
+        records = (data || []).map(r => ({ id: r.id, label: `${r.name} (${r.role})`, icon: 'badge' }));
+        break;
+      }
+      case 'classroom': {
+        let qb = supabase.from('classrooms').select('id, name, day_of_week').order('name').limit(30);
+        if (q) qb = qb.ilike('name', `%${q}%`);
+        const { data } = await qb;
+        records = (data || []).map(r => ({ id: r.id, label: `${r.name}${r.day_of_week ? ` (${r.day_of_week})` : ''}`, icon: 'school' }));
+        break;
+      }
+    }
+  } catch (err) { console.error('リンク検索エラー:', err); }
+
+  if (records.length === 0) { resultsEl.innerHTML = '<div class="chat-empty" style="padding:20px">該当なし</div>'; return; }
+
+  resultsEl.innerHTML = records.map(r => {
+    const safeLabel = escapeHtml(r.label).replace(/'/g, '&#39;');
+    return `<div class="chat-link-result-item" onclick="window.memberApp.chatSendLinkMessage('${category}','${r.id}','${safeLabel}')">
+        <span class="material-icons" style="font-size:18px;color:var(--gray-400)">${r.icon}</span>
+        <span class="chat-link-result-label">${escapeHtml(r.label)}</span>
+        <span class="material-icons" style="font-size:16px;color:var(--gray-300)">send</span>
+      </div>`;
+  }).join('');
+}
+
+async function chatSendLinkMessage(refType, refId, refLabel) {
+  if (!currentStaff || !currentChannelId) return;
+  chatCloseLinkPicker();
+
+  const { data: inserted, error } = await supabase.from('chat_messages').insert({
+    channel_id: currentChannelId, sender_id: currentStaff.id, message_type: 'link', body: refLabel,
+    metadata: { ref_type: refType, ref_id: refId, ref_label: refLabel },
+  }).select().single();
+
+  if (error) { console.error('リンク送信エラー:', error); showToast('リンクの送信に失敗しました', 'error'); return; }
+  if (inserted && !messages.find(m => m.id === inserted.id)) {
+    messages.push(inserted);
+    appendMessageToThread(inserted);
+    scrollToBottom();
+    markAsRead(currentChannelId);
+  }
+}
+
+// ===== New DM Picker =====
 
 function showNewDmPicker() {
   const body = document.getElementById('chat-sidebar-body');
   if (!body) return;
-
-  // Remove existing picker
   const existing = document.getElementById('chat-dm-modal');
   if (existing) { existing.remove(); return; }
-
   const allStaff = getAllActiveStaff();
   const existingPartnerIds = Object.values(dmPartnerIds);
-
-  const staffItems = allStaff
-    .filter(s => s.id !== currentStaff?.id)
-    .map(s => {
-      const hasDm = existingPartnerIds.includes(s.id);
-      return `
-        <div class="chat-dm-picker-item" onclick="window.memberApp.chatStartDm('${s.id}')">
-          ${renderAvatar(s.id, 32)}
-          <span class="chat-dm-picker-name">${escapeHtml(s.name)}</span>
-          ${hasDm ? '<span class="material-icons" style="font-size:14px;color:var(--gray-400)">chat</span>' : ''}
-        </div>`;
-    }).join('');
+  const staffItems = allStaff.filter(s => s.id !== currentStaff?.id).map(s => {
+    const hasDm = existingPartnerIds.includes(s.id);
+    return `<div class="chat-dm-picker-item" onclick="window.memberApp.chatStartDm('${s.id}')">
+        ${renderAvatar(s.id, 32)}
+        <span class="chat-dm-picker-name">${escapeHtml(s.name)}</span>
+        ${hasDm ? '<span class="material-icons" style="font-size:14px;color:var(--gray-400)">chat</span>' : ''}
+      </div>`;
+  }).join('');
 
   const picker = document.createElement('div');
   picker.className = 'chat-dm-modal';
@@ -929,14 +1215,9 @@ function showNewDmPicker() {
   picker.innerHTML = `
     <div class="chat-dm-modal-header">
       <span>新しいメッセージ</span>
-      <button class="btn-icon" onclick="window.memberApp.chatHideNewDmPicker()">
-        <span class="material-icons">close</span>
-      </button>
+      <button class="btn-icon" onclick="window.memberApp.chatHideNewDmPicker()"><span class="material-icons">close</span></button>
     </div>
-    <div class="chat-dm-modal-body">
-      ${staffItems || '<div class="chat-empty">スタッフがいません</div>'}
-    </div>`;
-
+    <div class="chat-dm-modal-body">${staffItems || '<div class="chat-empty">スタッフがいません</div>'}</div>`;
   body.appendChild(picker);
 }
 
@@ -950,7 +1231,7 @@ async function startDm(staffId) {
   await openDmWithStaff(staffId);
 }
 
-// --- Exported aliases for window.memberApp ---
+// ===== Exported aliases for window.memberApp =====
 
 export const chatOpenChannel = (id) => openChannel(id);
 export const chatBackToList = () => backToChannelList();
@@ -959,3 +1240,9 @@ export const chatToggleSection = (key) => toggleSection(key);
 export const chatShowNewDmPicker = () => showNewDmPicker();
 export const chatHideNewDmPicker = () => hideNewDmPicker();
 export const chatStartDm = (staffId) => startDm(staffId);
+
+// New feature exports
+export { chatEditMessage, chatSaveEdit, chatCancelEdit };
+export { chatDeleteMessage, chatConfirmDelete, chatCancelDelete };
+export { chatAttachFile };
+export { chatOpenLinkPicker, chatCloseLinkPicker, chatSelectLinkCategory, chatSearchLinkRecords, chatSendLinkMessage, chatLinkPickerBack };
