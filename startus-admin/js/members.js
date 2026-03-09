@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal } from './app.js';
 import { getActiveClassrooms, getClassrooms } from './classroom.js';
+import { tagToName, tagsToNames } from './class-utils.js';
 import { renderFeeSection, initFeeSection, loadAllFees, getCurrentFiscalYear } from './fees.js';
 import { logActivity } from './history.js';
 import { loadMemberAttendance } from './attendance-view.js';
@@ -102,8 +103,8 @@ function applyFiltersAndRender() {
       case 'member_number':
         return (a.member_number || '').localeCompare(b.member_number || '', 'ja');
       case 'classes':
-        const ac = (a.classes || [])[0] || '';
-        const bc = (b.classes || [])[0] || '';
+        const ac = tagToName((a.classes || [])[0] || '');
+        const bc = tagToName((b.classes || [])[0] || '');
         return ac.localeCompare(bc, 'ja');
       case 'member_type':
         return (a.member_type || '').localeCompare(b.member_type || '', 'ja');
@@ -163,7 +164,7 @@ function buildMemberGridRow(m) {
   const typeBadge = `<span class="badge badge-type badge-type-${getTypeClass(m.member_type)}">${escapeHtml(m.member_type)}</span>`;
   const statusBadge = `<span class="badge badge-status badge-status-${getStatusClass(m.status)}">${escapeHtml(m.status)}</span>`;
   const classBadges = (m.classes || []).map(c =>
-    `<span class="badge badge-class">${escapeHtml(c)}</span>`
+    `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`
   ).join('');
   const checked = selectedIds.has(m.id) ? 'checked' : '';
 
@@ -240,24 +241,25 @@ function updateClassFilterOptions() {
   const container = document.getElementById('class-filter-options');
   if (!container) return;
 
-  // マスタデータから教室フィルタを生成
+  // マスタデータから教室フィルタを生成（calendar_tagをvalueに使用）
   const allClassrooms = getClassrooms();
   const options = allClassrooms.map(c => {
-    const checked = filters.classes.includes(c.name) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c.name)}" ${checked}>${escapeHtml(c.name)}</label>`;
+    const tag = c.calendar_tag || c.name;
+    const checked = filters.classes.includes(tag) ? 'checked' : '';
+    return `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
   });
 
   // マスタにない旧データもフォールバック表示
-  const masterNames = new Set(allClassrooms.map(c => c.name));
+  const masterTags = new Set(allClassrooms.map(c => c.calendar_tag).filter(Boolean));
   const orphanClasses = new Set();
   allMembers.forEach(m => {
     (m.classes || []).forEach(c => {
-      if (!masterNames.has(c)) orphanClasses.add(c);
+      if (!masterTags.has(c)) orphanClasses.add(c);
     });
   });
-  [...orphanClasses].sort((a, b) => a.localeCompare(b, 'ja')).forEach(c => {
+  [...orphanClasses].sort((a, b) => tagToName(a).localeCompare(tagToName(b), 'ja')).forEach(c => {
     const checked = filters.classes.includes(c) ? 'checked' : '';
-    options.push(`<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c)}" ${checked}>${escapeHtml(c)}</label>`);
+    options.push(`<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c)}" ${checked}>${escapeHtml(tagToName(c))}</label>`);
   });
 
   container.innerHTML = options.join('');
@@ -277,7 +279,7 @@ export function showDetail(id) {
   if (!m) return;
 
   const classesDisplay = (m.classes || []).map(c =>
-    `<span class="badge badge-class">${escapeHtml(c)}</span>`
+    `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`
   ).join(' ') || '-';
 
   const photoHtml = m.photo_url
@@ -357,8 +359,9 @@ function openMemberForm(member) {
   const m = member || {};
 
   const classroomCheckboxes = getActiveClassrooms().map(c => {
-    const checked = (m.classes || []).includes(c.name) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" name="classroom_cb" value="${escapeHtml(c.name)}" ${checked}>${escapeHtml(c.name)}</label>`;
+    const tag = c.calendar_tag || c.name;
+    const checked = (m.classes || []).includes(tag) ? 'checked' : '';
+    return `<label class="filter-pill"><input type="checkbox" name="classroom_cb" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
   }).join('');
 
   const photoSection = isEdit ? `
@@ -528,8 +531,8 @@ async function saveMember(form, id) {
   // 変更履歴を記録
   if (id && oldMember) {
     for (const key of Object.keys(data)) {
-      const oldVal = key === 'classes' ? (oldMember.classes || []).join(', ') : (oldMember[key] ?? '');
-      const newVal = key === 'classes' ? classesArray.join(', ') : (data[key] ?? '');
+      const oldVal = key === 'classes' ? tagsToNames(oldMember.classes || []).join(', ') : (oldMember[key] ?? '');
+      const newVal = key === 'classes' ? tagsToNames(classesArray).join(', ') : (data[key] ?? '');
       if (String(oldVal) !== String(newVal)) {
         logActivity(id, 'update', key, oldVal, newVal);
       }
@@ -745,7 +748,7 @@ function renderBulkBar() {
     container.parentElement.insertBefore(bar, container);
   }
   const classOptions = getActiveClassrooms().map(c =>
-    `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`
+    `<option value="${escapeHtml(c.calendar_tag || c.name)}">${escapeHtml(c.name)}</option>`
   ).join('');
   bar.innerHTML = `
     <div class="bulk-bar-left">
@@ -842,7 +845,7 @@ export async function executeBulkAddClass() {
   }
 
   const content = `
-    <p>${toUpdate.length}名に「${escapeHtml(className)}」を追加しますか？</p>
+    <p>${toUpdate.length}名に「${escapeHtml(tagToName(className))}」を追加しますか？</p>
     <div style="max-height:150px;overflow-y:auto;margin:12px 0;padding:8px;background:var(--gray-50);border-radius:8px;font-size:0.9rem">
       ${toUpdate.map(m => `<div>${escapeHtml(m.name)}</div>`).join('')}
     </div>
@@ -868,7 +871,7 @@ export async function doBulkAddClass(className) {
       .update({ classes: updated })
       .eq('id', m.id);
     if (!error) {
-      logActivity(m.id, 'update', 'classes', current.join(', '), updated.join(', '));
+      logActivity(m.id, 'update', 'classes', tagsToNames(current).join(', '), tagsToNames(updated).join(', '));
       count++;
     }
   }
