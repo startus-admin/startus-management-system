@@ -5865,66 +5865,59 @@ body {
 .ics-preview-row:last-child { border-bottom: none; }
 .ics-preview-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* --- FullCalendar (スケジュール管理) --- */
+/* --- FullCalendar (スケジュール管理 - Google Calendar style) --- */
 
 #sm-fullcalendar {
   background: white;
   border-radius: var(--radius-lg);
   padding: 20px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
-  border: 1px solid var(--gray-100);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-200);
 }
 
 #sm-fullcalendar .fc {
   --fc-border-color: var(--gray-200);
-  --fc-today-bg-color: #eff6ff;
+  --fc-today-bg-color: #f0f7ff;
   --fc-event-border-color: transparent;
 }
 
+/* ツールバー全体 */
 #sm-fullcalendar .fc .fc-toolbar {
-  margin-bottom: 1rem;
+  margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 8px;
+  padding: 8px 0;
 }
 
+/* タイトル（月名） */
 #sm-fullcalendar .fc .fc-toolbar-title {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--gray-800);
 }
 
-/* 全ボタン共通 */
+/* 全ボタン共通リセット */
 #sm-fullcalendar .fc .fc-button {
-  border-radius: var(--radius-md);
   font-weight: 600;
-  font-size: 13px;
-  padding: 6px 14px;
-  border: 1px solid var(--gray-300);
-  background: white;
-  color: var(--gray-600);
-  box-shadow: none;
+  font-size: 0.85rem;
   transition: all 0.15s ease;
-}
-
-#sm-fullcalendar .fc .fc-button:hover {
-  background: var(--gray-50);
-  border-color: var(--gray-400);
-  color: var(--gray-700);
+  box-shadow: none !important;
 }
 
 #sm-fullcalendar .fc .fc-button:focus {
-  box-shadow: none;
+  box-shadow: none !important;
 }
 
-/* prev/nextボタン（丸型） */
+/* prev/nextボタン（丸型・透明） */
 #sm-fullcalendar .fc .fc-prev-button,
 #sm-fullcalendar .fc .fc-next-button {
   width: 36px;
   height: 36px;
   padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
+  border: none !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: var(--gray-600);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5932,18 +5925,35 @@ body {
 
 #sm-fullcalendar .fc .fc-prev-button:hover,
 #sm-fullcalendar .fc .fc-next-button:hover {
-  background: var(--gray-100);
-  border: none;
+  background: var(--gray-100) !important;
+  color: var(--gray-800);
 }
 
-/* prev/nextボタン内のMaterial Icons */
 #sm-fullcalendar .fc .fc-prev-button .material-icons,
 #sm-fullcalendar .fc .fc-next-button .material-icons {
-  font-size: 20px;
-  color: var(--gray-600);
+  font-size: 22px;
 }
 
-/* ビュー切替（segmented control） */
+/* 今日ボタン（アウトラインpill） */
+#sm-fullcalendar .fc .fc-today-button {
+  padding: 6px 16px;
+  border: 1px solid var(--gray-300) !important;
+  border-radius: var(--radius-md) !important;
+  background: white !important;
+  color: var(--gray-700) !important;
+}
+
+#sm-fullcalendar .fc .fc-today-button:hover {
+  background: var(--gray-50) !important;
+  border-color: var(--gray-400) !important;
+}
+
+#sm-fullcalendar .fc .fc-today-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ビュー切替グループ（segmented control） */
 #sm-fullcalendar .fc .fc-button-group {
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-md);
@@ -5951,42 +5961,49 @@ body {
 }
 
 #sm-fullcalendar .fc .fc-button-group .fc-button {
-  border: none;
-  border-right: 1px solid var(--gray-300);
-  border-radius: 0;
+  border: none !important;
+  border-right: 1px solid var(--gray-300) !important;
+  border-radius: 0 !important;
+  background: white !important;
+  color: var(--gray-500) !important;
+  padding: 6px 16px;
 }
 
 #sm-fullcalendar .fc .fc-button-group .fc-button:last-child {
-  border-right: none;
+  border-right: none !important;
+}
+
+#sm-fullcalendar .fc .fc-button-group .fc-button:hover {
+  background: var(--gray-50) !important;
+  color: var(--gray-700) !important;
 }
 
 /* アクティブなビュー */
 #sm-fullcalendar .fc .fc-button-primary:not(:disabled).fc-button-active,
 #sm-fullcalendar .fc .fc-button-primary:not(:disabled):active {
-  background: var(--primary-color);
-  border-color: transparent;
-  color: white;
-  box-shadow: none;
+  background: var(--primary-color) !important;
+  border-color: transparent !important;
+  color: white !important;
 }
 
+/* カレンダーグリッド */
 #sm-fullcalendar .fc .fc-col-header-cell {
-  padding: 10px 4px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--gray-400);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  padding: 12px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  letter-spacing: 0.06em;
 }
 
 #sm-fullcalendar .fc .fc-daygrid-day-number {
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.82rem;
   color: var(--gray-600);
   padding: 6px 8px;
 }
 
 #sm-fullcalendar .fc .fc-daygrid-event {
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
   padding: 2px 4px;
@@ -6001,7 +6018,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 3px rgb(59 130 246 / 0.3);
+  font-weight: 700;
 }
 
 /* --- ローディングアニメーション --- */

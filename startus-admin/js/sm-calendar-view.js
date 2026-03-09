@@ -29,7 +29,7 @@ export function initSmCalendar() {
     locale: 'ja',
     height: 'auto',
     headerToolbar: {
-      left: 'prev,next today',
+      left: 'prev next today',
       center: 'title',
       right: 'dayGridWeek,dayGridMonth,multiMonthYear',
     },
