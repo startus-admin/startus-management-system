@@ -11,6 +11,8 @@ import { tagToName } from './class-utils.js';
 
 let viewsCache = [];
 let initialized = false;
+let sortMode = false;
+let dragState = null;
 
 // ============================================
 // データ取得
@@ -46,6 +48,7 @@ export function getActiveAppViews() {
 
 export async function initAppViews() {
   if (!initialized) {
+    initViewSortButton();
     initialized = true;
   }
   await loadAppViews();
@@ -85,6 +88,9 @@ function renderAppViewsScreen() {
     html += `
       <div class="list-item av-row${inactiveClass}" data-id="${v.id}"
            onclick="window.memberApp.openViewEditForm('${v.id}')">
+        <div class="av-drag-handle">
+          <span class="material-icons">drag_indicator</span>
+        </div>
         <div class="av-row-main">
           <div class="av-row-name">
             <strong>${escapeHtml(v.name)}</strong>
@@ -103,11 +109,229 @@ function renderAppViewsScreen() {
             <span class="material-icons" style="font-size:18px;color:var(--danger-color)">delete</span>
           </button>
         </div>
-        <span class="material-icons" style="color:var(--gray-300);font-size:20px">chevron_right</span>
+        <span class="material-icons av-row-arrow" style="color:var(--gray-300);font-size:20px">chevron_right</span>
       </div>`;
   }
 
   listEl.innerHTML = html;
+
+  // 並び替えモード中なら再設定
+  if (sortMode) {
+    listEl.classList.add('av-sort-mode');
+    listEl.querySelectorAll('.list-item').forEach(item => {
+      item.addEventListener('mousedown', onViewDragStart);
+      item.addEventListener('touchstart', onViewDragStart, { passive: false });
+    });
+  }
+}
+
+// ============================================
+// 並び替えモード
+// ============================================
+
+function initViewSortButton() {
+  const btn = document.getElementById('view-sort-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    if (sortMode) {
+      disableViewSortMode();
+    } else {
+      enableViewSortMode();
+    }
+  });
+}
+
+function enableViewSortMode() {
+  sortMode = true;
+  const container = document.getElementById('app-views-list');
+  const btn = document.getElementById('view-sort-btn');
+  if (!container || !btn) return;
+
+  container.classList.add('av-sort-mode');
+  btn.innerHTML = '<span class="material-icons">check</span><span class="btn-text-mobile-hide">完了</span>';
+  btn.classList.add('sort-active');
+
+  container.querySelectorAll('.list-item').forEach(item => {
+    item.addEventListener('mousedown', onViewDragStart);
+    item.addEventListener('touchstart', onViewDragStart, { passive: false });
+  });
+}
+
+async function disableViewSortMode() {
+  sortMode = false;
+  const container = document.getElementById('app-views-list');
+  const btn = document.getElementById('view-sort-btn');
+  if (!container || !btn) return;
+
+  container.querySelectorAll('.list-item').forEach(item => {
+    item.removeEventListener('mousedown', onViewDragStart);
+    item.removeEventListener('touchstart', onViewDragStart);
+  });
+
+  container.classList.remove('av-sort-mode');
+  btn.innerHTML = '<span class="material-icons">drag_indicator</span><span class="btn-text-mobile-hide">並替</span>';
+  btn.classList.remove('sort-active');
+
+  await saveViewSortOrder();
+}
+
+// ============================================
+// ドラッグ＆ドロップ
+// ============================================
+
+function onViewDragStart(e) {
+  if (!sortMode) return;
+  e.preventDefault();
+
+  const item = e.currentTarget;
+  const container = item.parentNode;
+  const rect = item.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+  const clone = item.cloneNode(true);
+  clone.classList.add('av-drag-clone');
+  clone.style.cssText = `
+    position: fixed;
+    width: ${rect.width}px;
+    left: ${rect.left}px;
+    top: ${rect.top}px;
+    z-index: 9999;
+    pointer-events: none;
+    margin: 0;
+    transition: none;
+  `;
+  document.body.appendChild(clone);
+
+  item.classList.add('av-drag-placeholder');
+
+  dragState = {
+    item,
+    clone,
+    container,
+    offsetX: clientX - rect.left,
+    offsetY: clientY - rect.top,
+  };
+
+  document.addEventListener('mousemove', onViewDragMove);
+  document.addEventListener('mouseup', onViewDragEnd);
+  document.addEventListener('touchmove', onViewDragMove, { passive: false });
+  document.addEventListener('touchend', onViewDragEnd);
+}
+
+function onViewDragMove(e) {
+  if (!dragState) return;
+  e.preventDefault();
+
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+  dragState.clone.style.left = (clientX - dragState.offsetX) + 'px';
+  dragState.clone.style.top = (clientY - dragState.offsetY) + 'px';
+
+  const items = Array.from(dragState.container.querySelectorAll('.list-item'));
+  let insertTarget = null;
+
+  for (const target of items) {
+    if (target === dragState.item) continue;
+    const rect = target.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    if (clientY < midY) {
+      insertTarget = target;
+      break;
+    }
+  }
+
+  const needsMove = insertTarget
+    ? dragState.item.nextElementSibling !== insertTarget
+    : dragState.item !== dragState.container.lastElementChild;
+
+  if (needsMove) {
+    // FLIP: First
+    const siblings = Array.from(dragState.container.querySelectorAll('.list-item'));
+    const firstRects = new Map();
+    for (const el of siblings) {
+      if (el !== dragState.item) {
+        firstRects.set(el, el.getBoundingClientRect());
+      }
+    }
+
+    // DOM 移動
+    if (insertTarget) {
+      dragState.container.insertBefore(dragState.item, insertTarget);
+    } else {
+      dragState.container.appendChild(dragState.item);
+    }
+
+    // FLIP: Last + Invert + Play
+    for (const [el, firstRect] of firstRects) {
+      const lastRect = el.getBoundingClientRect();
+      const dy = firstRect.top - lastRect.top;
+      if (Math.abs(dy) > 1) {
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${dy}px)`;
+        requestAnimationFrame(() => {
+          el.style.transition = 'transform 0.35s cubic-bezier(0.25, 1, 0.5, 1)';
+          el.style.transform = '';
+        });
+      }
+    }
+  }
+}
+
+function onViewDragEnd() {
+  if (!dragState) return;
+
+  dragState.clone.remove();
+  dragState.item.classList.remove('av-drag-placeholder');
+
+  // DOM順序に合わせて viewsCache を更新
+  const items = dragState.container.querySelectorAll('.list-item');
+  const newOrder = [];
+  items.forEach(item => {
+    const view = viewsCache.find(v => v.id === item.dataset.id);
+    if (view) newOrder.push(view);
+  });
+  viewsCache = newOrder;
+
+  // 表示順番号を即座に更新
+  items.forEach((item, index) => {
+    const orderEl = item.querySelector('.av-row-order');
+    if (orderEl) orderEl.textContent = index + 1;
+  });
+
+  document.removeEventListener('mousemove', onViewDragMove);
+  document.removeEventListener('mouseup', onViewDragEnd);
+  document.removeEventListener('touchmove', onViewDragMove);
+  document.removeEventListener('touchend', onViewDragEnd);
+
+  dragState = null;
+}
+
+// ============================================
+// 並び順を保存
+// ============================================
+
+async function saveViewSortOrder() {
+  try {
+    for (let i = 0; i < viewsCache.length; i++) {
+      const view = viewsCache[i];
+      const newOrder = i + 1;
+      if (view.display_order !== newOrder) {
+        const { error } = await supabase
+          .from('attendance_app_views')
+          .update({ display_order: newOrder })
+          .eq('id', view.id);
+        if (error) throw error;
+        view.display_order = newOrder;
+      }
+    }
+    showToast('並び順を保存しました', 'success');
+  } catch (error) {
+    console.error('並び順の保存エラー:', error);
+    showToast('並び順の保存に失敗しました', 'error');
+  }
 }
 
 // ============================================

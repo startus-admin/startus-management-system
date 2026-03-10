@@ -8880,3 +8880,48 @@ select.form-control {
   height: 16px;
   accent-color: var(--primary-color);
 }
+
+/* ビュー並び替え */
+.av-sort-mode .av-row {
+  grid-template-columns: auto 1fr auto auto;
+}
+.av-drag-handle {
+  display: none;
+  align-items: center;
+  padding-right: 8px;
+  color: var(--gray-400);
+  cursor: grab;
+}
+.av-drag-handle .material-icons {
+  font-size: 1.2rem;
+}
+.av-sort-mode .av-drag-handle {
+  display: flex;
+}
+.av-sort-mode .list-item {
+  cursor: grab;
+  user-select: none;
+}
+.av-sort-mode .list-item:active {
+  cursor: grabbing;
+}
+.av-sort-mode .av-row-arrow {
+  display: none;
+}
+.av-drag-placeholder {
+  opacity: 0.3;
+  border: 2px dashed var(--primary-color);
+  background: var(--blue-50, #eff6ff);
+}
+.av-drag-clone {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18),
+              0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  opacity: 0.95;
+}
+#view-sort-btn.sort-active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
