@@ -7,6 +7,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { getActiveClassrooms } from './classroom.js';
+import { tagToName, getSubClassesFromArray } from './class-utils.js';
 
 let initialized = false;
 let classrooms = [];
@@ -378,6 +379,7 @@ export async function openAttendanceModal(eventId) {
 
   // 教室に所属する会員を取得（複数教室対応・重複排除）
   let members = [];
+  const isGroupEvent = !!event.attendance_group;
   if (targetClassroomTags.length > 0) {
     const results = await Promise.all(
       targetClassroomTags.map(tag =>
@@ -391,10 +393,28 @@ export async function openAttendanceModal(eventId) {
     const memberMap = {};
     for (const { data } of results) {
       for (const m of (data || [])) {
-        memberMap[m.id] = m;
+        if (!memberMap[m.id]) {
+          // 所属教室名とサブクラスを付与
+          const classroomNames = (m.classes || [])
+            .filter(c => targetClassroomTags.includes(c))
+            .map(c => tagToName(c));
+          const subClasses = getSubClassesFromArray(m.classes || []);
+          memberMap[m.id] = {
+            ...m,
+            classroomLabel: classroomNames.join('/'),
+            subClassLabel: subClasses.join('/')
+          };
+        }
       }
     }
-    members = Object.values(memberMap).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    members = Object.values(memberMap).sort((a, b) => {
+      // 合同グループの場合は教室名でソート → 名前でソート
+      if (isGroupEvent) {
+        const cmp = (a.classroomLabel || '').localeCompare(b.classroomLabel || '', 'ja');
+        if (cmp !== 0) return cmp;
+      }
+      return a.name.localeCompare(b.name, 'ja');
+    });
   }
 
   // 指導者・スタッフを取得（show_in_attendance=true かつ教室に所属）
@@ -432,11 +452,24 @@ export async function openAttendanceModal(eventId) {
 
   // 会員行の生成
   let memberRows = '';
+  let lastClassroomLabel = '';
   for (const m of members) {
     const currentStatus = recordMap[m.id] || 'present';
+    // 合同グループの場合、教室名が変わったらセクションヘッダーを挿入
+    if (isGroupEvent && m.classroomLabel && m.classroomLabel !== lastClassroomLabel) {
+      lastClassroomLabel = m.classroomLabel;
+      memberRows += `
+        <div class="att-section-label">
+          <span class="material-icons" style="font-size:16px;margin-right:4px">school</span>
+          ${escapeHtml(m.classroomLabel)}
+        </div>`;
+    }
+    const badgeHtml = m.subClassLabel
+      ? `<span class="att-role-badge">${escapeHtml(m.subClassLabel)}</span>`
+      : '';
     memberRows += `
       <div class="att-member-row" data-member-id="${m.id}" data-person-type="member">
-        <span class="att-member-name">${escapeHtml(m.name)}</span>
+        <span class="att-member-name">${escapeHtml(m.name)}${badgeHtml}</span>
         <div class="att-toggle">
           <button type="button" class="att-toggle-btn present ${currentStatus === 'present' ? 'active' : ''}"
                   onclick="window.memberApp.toggleAttendance(this, 'present')">出席</button>
