@@ -370,6 +370,25 @@ export async function openAttendanceModal(eventId) {
     members = Object.values(memberMap).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   }
 
+  // 指導者・スタッフを取得（show_in_attendance=true かつ教室に所属）
+  let staffList = [];
+  const { data: allStaff } = await supabase
+    .from('staff')
+    .select('id, name, role, classes')
+    .eq('status', '在籍')
+    .eq('show_in_attendance', true)
+    .order('display_order')
+    .order('name');
+
+  if (allStaff && targetClassroomTags.length > 0) {
+    staffList = allStaff.filter(s => {
+      const staffClasses = s.classes || [];
+      return staffClasses.length === 0 || targetClassroomTags.some(tag => staffClasses.includes(tag));
+    });
+  } else if (allStaff) {
+    staffList = allStaff;
+  }
+
   // 既存の出欠レコードを取得
   const { data: existingRecords } = await supabase
     .from('attendance_records')
@@ -384,11 +403,12 @@ export async function openAttendanceModal(eventId) {
   // モーダル構築
   setModalWide(true);
 
+  // 会員行の生成
   let memberRows = '';
   for (const m of members) {
     const currentStatus = recordMap[m.id] || 'present';
     memberRows += `
-      <div class="att-member-row" data-member-id="${m.id}">
+      <div class="att-member-row" data-member-id="${m.id}" data-person-type="member">
         <span class="att-member-name">${escapeHtml(m.name)}</span>
         <div class="att-toggle">
           <button type="button" class="att-toggle-btn present ${currentStatus === 'present' ? 'active' : ''}"
@@ -399,6 +419,28 @@ export async function openAttendanceModal(eventId) {
       </div>`;
   }
 
+  // スタッフ行の生成
+  let staffRows = '';
+  for (const s of staffList) {
+    const currentStatus = recordMap[s.id] || 'present';
+    const roleLabel = s.role || 'スタッフ';
+    staffRows += `
+      <div class="att-member-row" data-member-id="${s.id}" data-person-type="staff">
+        <span class="att-member-name">
+          ${escapeHtml(s.name)}
+          <span class="att-role-badge">${escapeHtml(roleLabel)}</span>
+        </span>
+        <div class="att-toggle">
+          <button type="button" class="att-toggle-btn present ${currentStatus === 'present' ? 'active' : ''}"
+                  onclick="window.memberApp.toggleAttendance(this, 'present')">出席</button>
+          <button type="button" class="att-toggle-btn absent ${currentStatus === 'absent' ? 'active' : ''}"
+                  onclick="window.memberApp.toggleAttendance(this, 'absent')">欠席</button>
+        </div>
+      </div>`;
+  }
+
+  const totalCount = members.length + staffList.length;
+
   const content = `
     <div class="att-bulk-actions">
       <button class="btn btn-sm btn-secondary" onclick="window.memberApp.bulkSetAttendance('present')">
@@ -407,12 +449,24 @@ export async function openAttendanceModal(eventId) {
       <button class="btn btn-sm btn-secondary" onclick="window.memberApp.bulkSetAttendance('absent')">
         <span class="material-icons" style="font-size:16px">remove_done</span> 全員欠席
       </button>
-      <span style="margin-left:auto;font-size:13px;color:var(--gray-500)">${members.length}名</span>
+      <span style="margin-left:auto;font-size:13px;color:var(--gray-500)">${totalCount}名</span>
     </div>
     <div class="att-member-list" id="att-member-list">
-      ${memberRows || '<p style="padding:20px;color:var(--gray-400)">この教室に所属する会員がいません</p>'}
+      ${members.length > 0 ? `
+        <div class="att-section-label">
+          <span class="material-icons" style="font-size:16px">people</span>会員（${members.length}名）
+        </div>
+        ${memberRows}
+      ` : ''}
+      ${staffList.length > 0 ? `
+        <div class="att-section-label att-section-staff">
+          <span class="material-icons" style="font-size:16px">badge</span>指導者・スタッフ（${staffList.length}名）
+        </div>
+        ${staffRows}
+      ` : ''}
+      ${totalCount === 0 ? '<p style="padding:20px;color:var(--gray-400)">この教室に所属する会員・スタッフがいません</p>' : ''}
     </div>
-    ${members.length > 0 ? `
+    ${totalCount > 0 ? `
     <div class="modal-actions" style="margin-top:16px">
       <button class="btn btn-primary" onclick="window.memberApp.saveAttendance('${eventId}')">
         <span class="material-icons" style="font-size:16px">save</span> 保存
@@ -449,13 +503,14 @@ export async function saveAttendance(eventId) {
   const records = [];
 
   rows.forEach(row => {
-    const memberId = row.dataset.memberId;
+    const personId = row.dataset.memberId;
+    const personType = row.dataset.personType || 'member';
     const presentBtn = row.querySelector('.att-toggle-btn.present');
     const status = presentBtn && presentBtn.classList.contains('active') ? 'present' : 'absent';
     records.push({
       event_id: eventId,
-      person_id: memberId,
-      person_type: 'member',
+      person_id: personId,
+      person_type: personType,
       status
     });
   });

@@ -8518,6 +8518,37 @@ select.form-control {
   font-weight: 500;
 }
 
+/* Section labels inside attendance modal */
+.att-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.att-section-staff {
+  border-top: 2px solid var(--gray-200);
+  margin-top: 4px;
+}
+
+.att-role-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--accent-color);
+  background: var(--accent-light);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 .att-toggle {
   display: inline-flex;
   gap: 4px;
