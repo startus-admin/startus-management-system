@@ -12,6 +12,7 @@ let classrooms = [];
 
 // ソート・フィルタ状態
 let currentSort = { key: 'rate', asc: false };
+let currentTab = 'member'; // 'member' or 'staff'
 let allRows = [];        // フィルタ前の全行データ
 let allEvents = [];      // イベントデータ（展開行で使用）
 let allRecords = [];     // 出欠レコード（展開行で使用）
@@ -45,7 +46,16 @@ export async function initAttendanceStats() {
   // クライアントサイドフィルタ（再描画のみ）
   document.getElementById('att-stats-search').addEventListener('input', applyClientFilters);
   document.getElementById('att-stats-rate-filter').addEventListener('change', applyClientFilters);
-  document.getElementById('att-stats-type-filter').addEventListener('change', applyClientFilters);
+
+  // タブ切替
+  document.querySelectorAll('.att-stats-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      currentTab = tab.dataset.tab;
+      document.querySelectorAll('.att-stats-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      applyClientFilters();
+    });
+  });
 
   // データ読み込み
   await loadAttendanceStats();
@@ -254,9 +264,9 @@ function calcStreaks(records, eventDateMap) {
 function applyClientFilters() {
   const searchQuery = (document.getElementById('att-stats-search').value || '').toLowerCase();
   const rateFilter = document.getElementById('att-stats-rate-filter').value;
-  const typeFilter = document.getElementById('att-stats-type-filter').value;
 
-  let filtered = allRows;
+  // タブで種別を決定
+  let filtered = allRows.filter(r => r.type === (currentTab === 'staff' ? 'staff' : 'member'));
 
   // 名前検索
   if (searchQuery) {
@@ -272,33 +282,17 @@ function applyClientFilters() {
     filtered = filtered.filter(r => r.rate < 50);
   }
 
-  // メンバーとスタッフを分離
-  const members = filtered.filter(r => r.type === 'member');
-  const staff = filtered.filter(r => r.type === 'staff');
+  // タブのカウント更新
+  const memberCount = allRows.filter(r => r.type === 'member').length;
+  const staffCount = allRows.filter(r => r.type === 'staff').length;
+  const memberTab = document.querySelector('.att-stats-tab[data-tab="member"]');
+  const staffTab = document.querySelector('.att-stats-tab[data-tab="staff"]');
+  if (memberTab) memberTab.innerHTML = `<span class="material-icons">people</span>会員<span class="att-tab-count">${memberCount}</span>`;
+  if (staffTab) staffTab.innerHTML = `<span class="material-icons">badge</span>指導者・スタッフ<span class="att-tab-count">${staffCount}</span>`;
 
-  // 種別フィルタによる表示制御
-  const showMembers = typeFilter !== 'staff';
-  const showStaff = typeFilter !== 'member';
-
-  let html = '';
-
-  // メンバーセクション
-  if (showMembers) {
-    const sortedMembers = sortRows(members);
-    html += renderTableHtml(sortedMembers, 'メンバー', 'people');
-  }
-
-  // スタッフセクション
-  if (showStaff && staff.length > 0) {
-    const sortedStaff = sortRows(staff);
-    html += renderTableHtml(sortedStaff, 'スタッフ', 'badge');
-  }
-
-  if (!html) {
-    html = '<p style="color:var(--gray-400);padding:20px;text-align:center">データがありません</p>';
-  }
-
-  document.getElementById('att-stats-table').innerHTML = html;
+  const sorted = sortRows(filtered);
+  renderTable(sorted);
+  document.getElementById('att-stats-table').innerHTML = renderTableHtml(sorted);
 
   // ソートヘッダーのイベントリスナー
   document.querySelectorAll('.att-sortable').forEach(th => {
@@ -376,7 +370,11 @@ function renderSummary(events, persons, avgRate) {
 // ============================================
 // テーブルHTML生成
 // ============================================
-function renderTableHtml(rows, sectionLabel, sectionIcon) {
+function renderTableHtml(rows) {
+  if (rows.length === 0) {
+    return '<p style="color:var(--gray-400);padding:20px;text-align:center">データがありません</p>';
+  }
+
   const sortIcon = (key) => {
     if (currentSort.key !== key) return '<span class="material-icons att-sort-icon">unfold_more</span>';
     return currentSort.asc
@@ -384,25 +382,13 @@ function renderTableHtml(rows, sectionLabel, sectionIcon) {
       : '<span class="material-icons att-sort-icon att-sort-active">arrow_downward</span>';
   };
 
-  let html = `
-    <div class="att-section">
-      <div class="att-section-header">
-        <span class="material-icons">${sectionIcon}</span>
-        <span>${sectionLabel}</span>
-        <span class="att-section-count">${rows.length}名</span>
-      </div>`;
+  const isStaffTab = currentTab === 'staff';
 
-  if (rows.length === 0) {
-    html += '<p style="color:var(--gray-400);padding:16px;text-align:center;font-size:13px">データがありません</p>';
-    html += '</div>';
-    return html;
-  }
-
-  html += `<table class="att-stats-tbl">
+  let html = `<table class="att-stats-tbl">
     <thead>
       <tr>
         <th class="att-sortable" data-sort="name">名前 ${sortIcon('name')}</th>
-        <th>教室</th>
+        ${isStaffTab ? '' : '<th>教室</th>'}
         <th class="att-sortable" data-sort="present">出席 ${sortIcon('present')}</th>
         <th class="att-sortable" data-sort="absent">欠席 ${sortIcon('absent')}</th>
         <th>連続</th>
@@ -412,9 +398,12 @@ function renderTableHtml(rows, sectionLabel, sectionIcon) {
     </thead>
     <tbody>`;
 
+  const colspan = isStaffTab ? 6 : 7;
+
   for (const r of rows) {
-    const classLabel = r.type === 'staff' ? '' :
-      (r.classes.length > 0 ? r.classes.map(c => `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`).join(' ') : '-');
+    const classLabel = r.classes.length > 0
+      ? r.classes.map(c => `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`).join(' ')
+      : '-';
 
     // 皆勤・低出席ハイライト
     let nameExtra = '';
@@ -441,7 +430,7 @@ function renderTableHtml(rows, sectionLabel, sectionIcon) {
     html += `
       <tr>
         <td class="att-tbl-name">${nameExtra}${escapeHtml(r.name)}</td>
-        <td>${classLabel}</td>
+        ${isStaffTab ? '' : `<td>${classLabel}</td>`}
         <td>${r.present}</td>
         <td>${r.absent}</td>
         <td>${streakHtml}</td>
@@ -456,13 +445,13 @@ function renderTableHtml(rows, sectionLabel, sectionIcon) {
         </td>
       </tr>
       <tr class="att-detail-row" id="att-detail-${r.id}" style="display:none">
-        <td colspan="7">
+        <td colspan="${colspan}">
           <div class="att-detail-content" id="att-detail-content-${r.id}"></div>
         </td>
       </tr>`;
   }
 
-  html += '</tbody></table></div>';
+  html += '</tbody></table>';
   return html;
 }
 

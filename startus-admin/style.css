@@ -8165,39 +8165,58 @@ select.form-control {
   color: var(--primary-dark);
 }
 
-/* Section header (member / staff) */
-.att-section {
-  margin-bottom: 20px;
+/* Tabs (member / staff) */
+.att-stats-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--gray-200);
 }
 
-.att-section-header {
-  display: flex;
+.att-stats-tab {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 10px 20px;
   font-size: 14px;
-  font-weight: 600;
-  color: var(--gray-700);
-  background: var(--gray-50);
-  border: 1px solid var(--border-color);
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-}
-
-.att-section-header .material-icons {
-  font-size: 18px;
-  color: var(--primary-color);
-}
-
-.att-section-count {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--gray-500);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.att-section .att-stats-tbl {
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+.att-stats-tab .material-icons {
+  font-size: 18px;
+}
+
+.att-stats-tab:hover {
+  color: var(--gray-700);
+}
+
+.att-stats-tab.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.att-tab-count {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--gray-200);
+  color: var(--gray-600);
+  padding: 1px 7px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.att-stats-tab.active .att-tab-count {
+  background: var(--primary-light);
+  color: var(--primary-color);
 }
 
 /* Sortable headers */

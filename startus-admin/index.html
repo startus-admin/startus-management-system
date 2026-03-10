@@ -629,12 +629,15 @@
             <option value="mid">50〜79%</option>
             <option value="low">50%未満</option>
           </select>
-          <select id="att-stats-type-filter" class="att-stats-select">
-            <option value="">全員</option>
-            <option value="member">メンバーのみ</option>
-            <option value="staff">スタッフのみ</option>
-          </select>
         </div>
+      </div>
+      <div class="att-stats-tabs" id="att-stats-tabs">
+        <button class="att-stats-tab active" data-tab="member">
+          <span class="material-icons">people</span>会員
+        </button>
+        <button class="att-stats-tab" data-tab="staff">
+          <span class="material-icons">badge</span>指導者・スタッフ
+        </button>
       </div>
       <div id="att-stats-summary" class="att-stats-summary"></div>
       <div id="att-stats-table" class="att-stats-table-container"></div>
