@@ -218,6 +218,7 @@ export function toggleChat() {
 // ===== Channel Navigation =====
 
 export async function openChannel(channelId) {
+  replyToMsg = null;
   currentChannelId = channelId;
   currentView = 'message-thread';
   await loadMessages(channelId);
@@ -229,6 +230,7 @@ export async function openChannel(channelId) {
 }
 
 export function backToChannelList() {
+  replyToMsg = null;
   currentView = 'channel-list';
   currentChannelId = null;
   messages = [];
@@ -1041,6 +1043,9 @@ function renderReplyPreview(msg) {
 function renderSlackMessage(msg, isGrouped) {
   if (msg.is_deleted) return renderDeletedMessage(msg, isGrouped);
   if (msg.message_type === 'system') return renderSystemDivider(msg);
+  if (msg.message_type === 'task') return renderTaskCard(msg);
+  if (msg.message_type === 'file') return renderFileMessage(msg, isGrouped);
+  if (msg.message_type === 'link') return renderLinkCard(msg, isGrouped);
 
   const isOwn = msg.sender_id === currentStaff?.id;
   const ownClass = isOwn ? ' chat-msg--own' : '';
@@ -1048,10 +1053,6 @@ function renderSlackMessage(msg, isGrouped) {
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
   const replyHtml = renderReplyPreview(msg);
-
-  if (msg.message_type === 'task') return renderTaskCard(msg);
-  if (msg.message_type === 'file') return renderFileMessage(msg, isGrouped);
-  if (msg.message_type === 'link') return renderLinkCard(msg, isGrouped);
 
   const editedTag = msg.edited_at ? '<span class="chat-msg-edited">(編集済み)</span>' : '';
 
