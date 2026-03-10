@@ -865,11 +865,11 @@ function chatCtxForward(msgId) {
 }
 
 function showForwardPicker() {
-  closeForwardPicker();
+  chatCloseForwardPicker();
   const overlay = document.createElement('div');
   overlay.className = 'chat-forward-overlay';
   overlay.id = 'chat-forward-overlay';
-  overlay.onclick = (e) => { if (e.target === overlay) closeForwardPicker(); };
+  overlay.onclick = (e) => { if (e.target === overlay) chatCloseForwardPicker(); };
 
   const selfChannel = channels.find(c => c.type === 'self');
   const groupChannels = channels.filter(c => c.type === 'group');
@@ -904,13 +904,13 @@ function showForwardPicker() {
   document.body.appendChild(overlay);
 }
 
-function closeForwardPicker() {
+function chatCloseForwardPicker() {
   const overlay = document.getElementById('chat-forward-overlay');
   if (overlay) overlay.remove();
 }
 
 async function chatForwardTo(channelId) {
-  closeForwardPicker();
+  chatCloseForwardPicker();
   const msg = messages.find(m => m.id === forwardMsgId);
   if (!msg || !currentStaff) { forwardMsgId = null; return; }
 
@@ -1564,4 +1564,5 @@ export { chatEditMessage, chatSaveEdit, chatCancelEdit };
 export { chatDeleteMessage, chatConfirmDelete, chatCancelDelete };
 export { chatAttachFile };
 export { chatOpenLinkPicker, chatCloseLinkPicker, chatSelectLinkCategory, chatSearchLinkRecords, chatSendLinkMessage, chatLinkPickerBack };
-export { chatCtxCopy, chatCtxEdit, chatCtxDelete, chatCtxForward, chatForwardTo, chatCloseForwardPicker };
+export { chatCtxCopy, chatCtxEdit, chatCtxDelete, chatCtxForward };
+export { chatForwardTo, chatCloseForwardPicker };
