@@ -475,6 +475,16 @@ export async function openAttendanceModal(eventId) {
   const totalCount = members.length + staffList.length;
 
   const content = `
+    <div class="att-stats-tabs att-modal-tabs">
+      <button class="att-stats-tab active" data-modal-tab="member" onclick="window.memberApp.switchAttModalTab('member')">
+        <span class="material-icons" style="font-size:18px">people</span>会員
+        <span class="att-tab-count">${members.length}</span>
+      </button>
+      <button class="att-stats-tab" data-modal-tab="staff" onclick="window.memberApp.switchAttModalTab('staff')">
+        <span class="material-icons" style="font-size:18px">badge</span>指導者・スタッフ
+        <span class="att-tab-count">${staffList.length}</span>
+      </button>
+    </div>
     <div class="att-bulk-actions">
       <button class="btn btn-sm btn-secondary" onclick="window.memberApp.bulkSetAttendance('present')">
         <span class="material-icons" style="font-size:16px">done_all</span> 全員出席
@@ -482,22 +492,14 @@ export async function openAttendanceModal(eventId) {
       <button class="btn btn-sm btn-secondary" onclick="window.memberApp.bulkSetAttendance('absent')">
         <span class="material-icons" style="font-size:16px">remove_done</span> 全員欠席
       </button>
-      <span style="margin-left:auto;font-size:13px;color:var(--gray-500)">${totalCount}名</span>
     </div>
     <div class="att-member-list" id="att-member-list">
-      ${members.length > 0 ? `
-        <div class="att-section-label">
-          <span class="material-icons" style="font-size:16px">people</span>会員（${members.length}名）
-        </div>
-        ${memberRows}
-      ` : ''}
-      ${staffList.length > 0 ? `
-        <div class="att-section-label att-section-staff">
-          <span class="material-icons" style="font-size:16px">badge</span>指導者・スタッフ（${staffList.length}名）
-        </div>
-        ${staffRows}
-      ` : ''}
-      ${totalCount === 0 ? '<p style="padding:20px;color:var(--gray-400)">この教室に所属する会員・スタッフがいません</p>' : ''}
+      <div class="att-modal-tab-panel" data-panel="member">
+        ${members.length > 0 ? memberRows : '<p style="padding:20px;color:var(--gray-400)">この教室に所属する会員がいません</p>'}
+      </div>
+      <div class="att-modal-tab-panel" data-panel="staff" style="display:none">
+        ${staffList.length > 0 ? staffRows : '<p style="padding:20px;color:var(--gray-400)">この教室に所属するスタッフがいません</p>'}
+      </div>
     </div>
     ${totalCount > 0 ? `
     <div class="modal-actions" style="margin-top:16px">
@@ -513,6 +515,15 @@ export async function openAttendanceModal(eventId) {
 // ============================================
 // トグル操作
 // ============================================
+export function switchAttModalTab(tab) {
+  document.querySelectorAll('.att-modal-tabs .att-stats-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.modalTab === tab);
+  });
+  document.querySelectorAll('.att-modal-tab-panel').forEach(p => {
+    p.style.display = p.dataset.panel === tab ? '' : 'none';
+  });
+}
+
 export function toggleAttendance(btn, status) {
   const row = btn.closest('.att-member-row');
   row.querySelectorAll('.att-toggle-btn').forEach(b => b.classList.remove('active'));
@@ -520,7 +531,10 @@ export function toggleAttendance(btn, status) {
 }
 
 export function bulkSetAttendance(status) {
-  const rows = document.querySelectorAll('#att-member-list .att-member-row');
+  // アクティブタブのパネルのみ対象
+  const activePanel = document.querySelector('.att-modal-tab-panel[style=""]') ||
+                      document.querySelector('.att-modal-tab-panel:not([style*="display:none"]):not([style*="display: none"])');
+  const rows = activePanel ? activePanel.querySelectorAll('.att-member-row') : document.querySelectorAll('#att-member-list .att-member-row');
   rows.forEach(row => {
     row.querySelectorAll('.att-toggle-btn').forEach(b => b.classList.remove('active'));
     const target = row.querySelector(`.att-toggle-btn.${status}`);

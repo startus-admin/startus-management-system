@@ -103,7 +103,7 @@ import {
 import { initAttendanceStats } from './attendance-stats.js';
 import {
   initAttendance, openCreateEventModal, createEventAndOpen, createEventOnly,
-  openAttendanceModal, toggleAttendance, bulkSetAttendance, saveAttendance,
+  openAttendanceModal, switchAttModalTab, toggleAttendance, bulkSetAttendance, saveAttendance,
   editEvent, saveEventEdit, confirmDeleteEvent, deleteEvent
 } from './attendance.js';
 
@@ -624,6 +624,7 @@ window.memberApp = {
   createEventAndOpen,
   createEventOnly,
   openAttendanceModal,
+  switchAttModalTab,
   toggleAttendance,
   bulkSetAttendance,
   saveAttendance,
