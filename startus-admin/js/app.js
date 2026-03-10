@@ -1,5 +1,5 @@
 import { checkSession, isAllowedEmail, isAdmin, signInWithGoogle, signOut, onAuthStateChange } from './auth.js';
-import { loadAppSettings, loadStaffCalendars, getAppName, getFurikaeAppUrl, renderAppSettings } from './app-settings.js';
+import { loadAppSettings, loadStaffCalendars, getAppName, renderAppSettings } from './app-settings.js';
 import {
   loadMembers, showDetail, openAddForm, openEditForm,
   confirmDelete, deleteMember, initSortSelect, initSearchInput,
@@ -215,9 +215,10 @@ function setPreviewDevice(device) {
 
 // --- アプリ画面 ---
 
-function openAppPreviewExternal() {
-  const url = getFurikaeAppUrl();
-  if (url) window.open(url, '_blank');
+const ATTENDANCE_APP_URL = 'https://attendance-app-omega-ten.vercel.app';
+
+function openAttendanceApp() {
+  window.open(ATTENDANCE_APP_URL, '_blank');
 }
 
 // --- フィルタパネル ---
@@ -596,7 +597,7 @@ window.memberApp = {
   loadShopCustomers,
   showCustomerDetail,
   // App Preview
-  openAppPreviewExternal,
+  openAttendanceApp,
   // Attendance
   initAttendance,
   openCreateEventModal,
