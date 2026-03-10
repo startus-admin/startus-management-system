@@ -2,7 +2,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { getActiveClassrooms, getClassrooms } from './classroom.js';
-import { tagToName, tagsToNames } from './class-utils.js';
+import { tagToName, tagsToNames, getSubClassesFromArray } from './class-utils.js';
 import { renderFeeSection, initFeeSection, loadAllFees, getCurrentFiscalYear } from './fees.js';
 import { logActivity } from './history.js';
 import { loadMemberAttendance } from './attendance-view.js';
@@ -308,6 +308,7 @@ export function showDetail(id) {
       <div class="detail-row"><span class="detail-label">メール</span><span class="detail-value">${escapeHtml(m.email) || '-'}${emailCopy}</span></div>
       <div class="detail-row"><span class="detail-label">住所</span><span class="detail-value">${escapeHtml(m.address) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">教室</span><span class="detail-value">${classesDisplay}</span></div>
+      <div class="detail-row"><span class="detail-label">サブクラス</span><span class="detail-value">${getSubClassesFromArray(m.classes).join(' / ') || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">学校</span><span class="detail-value">${escapeHtml(m.school) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">保護者名</span><span class="detail-value">${escapeHtml(m.guardian_name) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">障がい情報</span><span class="detail-value">${escapeHtml(m.disability_info) || '-'}</span></div>
@@ -450,6 +451,11 @@ function openMemberForm(member) {
           ${classroomCheckboxes}
         </div>
       </div>
+      <div class="form-group">
+        <label>サブクラス</label>
+        <input type="text" name="sub_class" value="${escapeHtml(getSubClassesFromArray(m.classes).join('/'))}" placeholder="例: パラ, ジャンプ">
+        <p class="form-hint">教室内のクラス分け（パラ/一般、ホップ/ステップ/ジャンプ等）</p>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label>学校</label>
@@ -491,8 +497,12 @@ function openMemberForm(member) {
 
 async function saveMember(form, id) {
   const fd = new FormData(form);
-  const classesArray = [...document.querySelectorAll('#classroom-checkboxes input[name="classroom_cb"]:checked')]
+  const classroomTags = [...document.querySelectorAll('#classroom-checkboxes input[name="classroom_cb"]:checked')]
     .map(cb => cb.value);
+  // サブクラスを classes 配列に追加（教室タグの後に）
+  const subClassValue = (fd.get('sub_class') || '').trim();
+  const subClasses = subClassValue ? subClassValue.split(/[\/,、]/).map(s => s.trim()).filter(Boolean) : [];
+  const classesArray = [...classroomTags, ...subClasses];
 
   const data = {
     member_number: fd.get('member_number') || '',

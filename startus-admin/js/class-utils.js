@@ -47,6 +47,16 @@ export function namesToTags(names) {
   return names.map(n => map[n] || n);
 }
 
+// --- sub-class ---
+
+/** classes 配列から教室タグ以外の要素（サブクラス名）を抽出 */
+export function getSubClassesFromArray(classes) {
+  if (!classes || !classes.length) return [];
+  const classrooms = getClassrooms();
+  const tagSet = new Set(classrooms.map(c => c.calendar_tag).filter(Boolean));
+  return classes.filter(c => !tagSet.has(c));
+}
+
 // --- lookup ---
 
 export function getClassroomByTag(tag) {
