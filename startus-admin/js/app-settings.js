@@ -90,6 +90,7 @@ export async function loadStaffCalendars() {
     .from('staff')
     .select('name, email, calendar_color')
     .eq('status', '在籍')
+    .eq('role', '事務局')
     .neq('calendar_color', '');
 
   if (error || !data || data.length === 0) {
