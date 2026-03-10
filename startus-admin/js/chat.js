@@ -1,4 +1,4 @@
-// --- 業務チャット (Slack風UI + ファイル/リンク/編集/削除) ---
+// --- 業務チャット (LINE風吹き出しUI + ファイル/リンク/編集/削除) ---
 
 import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
@@ -24,6 +24,7 @@ let dmPartnerNames = {};
 let dmPartnerIds = {};
 let linkSearchTimeout = null;
 let longPressTimer = null;
+let replyToMsg = null;  // message object being replied to
 
 // --- Constants ---
 
@@ -231,7 +232,12 @@ export function backToChannelList() {
   currentView = 'channel-list';
   currentChannelId = null;
   messages = [];
+  // Render immediately with cached data
+  renderChannelList();
+  updateUnreadBadge();
+  // Update data in background
   loadChannels().then(() => {
+    renderChannelList();
     loadUnreadCounts().then(() => { renderChannelList(); updateUnreadBadge(); });
   });
 }
@@ -248,9 +254,16 @@ export async function sendMessage() {
   input.style.height = 'auto';
   input.focus();
 
-  const { data: inserted, error } = await supabase.from('chat_messages').insert({
+  const metadata = replyToMsg ? { reply_to_id: replyToMsg.id } : null;
+  replyToMsg = null;
+  removeReplyPreviewBar();
+
+  const insertObj = {
     channel_id: currentChannelId, sender_id: currentStaff.id, message_type: 'text', body,
-  }).select().single();
+  };
+  if (metadata) insertObj.metadata = metadata;
+
+  const { data: inserted, error } = await supabase.from('chat_messages').insert(insertObj).select().single();
 
   if (error) {
     console.error('メッセージ送信エラー:', error);
@@ -752,13 +765,6 @@ function attachContextMenu(el) {
   });
 }
 
-// ===== Message Rendering =====
-
-function buildMsgActions(msg) {
-  // Context menu replaces hover actions — no inline buttons needed
-  return '';
-}
-
 // ===== Context Menu =====
 
 function showChatContextMenu(msgId, x, y) {
@@ -771,6 +777,9 @@ function showChatContextMenu(msgId, x, y) {
   const isCopyable = ['text', 'task', 'link', 'file'].includes(msg.message_type);
 
   let items = '';
+  // リプライ — all non-system messages
+  items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxReply('${msgId}')">
+    <span class="material-icons">reply</span><span>リプライ</span></div>`;
   // コピー — text, task, link, file
   if (isCopyable) {
     items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxCopy('${msgId}')">
@@ -842,6 +851,55 @@ function chatCtxCopy(msgId) {
   }).catch(() => {
     showToast('コピーに失敗しました', 'error');
   });
+}
+
+function chatCtxReply(msgId) {
+  closeChatContextMenu();
+  const msg = messages.find(m => m.id === msgId);
+  if (!msg) return;
+  replyToMsg = msg;
+  showReplyPreviewBar();
+  const input = document.getElementById('chat-message-input');
+  if (input) input.focus();
+}
+
+function showReplyPreviewBar() {
+  removeReplyPreviewBar();
+  if (!replyToMsg) return;
+  const inputArea = document.querySelector('.chat-input-area');
+  if (!inputArea) return;
+
+  const sender = getStaffById(replyToMsg.sender_id);
+  const senderName = sender ? sender.name : '不明';
+  let bodyPreview = '';
+  if (replyToMsg.message_type === 'file') bodyPreview = '📎 ファイル';
+  else if (replyToMsg.message_type === 'link') bodyPreview = '🔗 業務リンク';
+  else if (replyToMsg.message_type === 'task') bodyPreview = '📋 タスク';
+  else bodyPreview = (replyToMsg.body || '').substring(0, 50) + ((replyToMsg.body || '').length > 50 ? '…' : '');
+
+  const bar = document.createElement('div');
+  bar.className = 'chat-reply-bar';
+  bar.id = 'chat-reply-bar';
+  bar.innerHTML = `
+    <div class="chat-reply-bar-content">
+      <span class="material-icons" style="font-size:16px;color:var(--primary-color)">reply</span>
+      <div class="chat-reply-bar-text">
+        <span class="chat-reply-bar-name">${escapeHtml(senderName)}</span>
+        <span class="chat-reply-bar-body">${escapeHtml(bodyPreview)}</span>
+      </div>
+    </div>
+    <button class="btn-icon" onclick="window.memberApp.chatCancelReply()"><span class="material-icons" style="font-size:18px">close</span></button>`;
+  inputArea.insertBefore(bar, inputArea.firstChild);
+}
+
+function removeReplyPreviewBar() {
+  const bar = document.getElementById('chat-reply-bar');
+  if (bar) bar.remove();
+}
+
+function chatCancelReply() {
+  replyToMsg = null;
+  removeReplyPreviewBar();
 }
 
 function chatCtxEdit(msgId) {
@@ -961,88 +1019,123 @@ async function chatForwardTo(channelId) {
   forwardMsgId = null;
 }
 
+function renderReplyPreview(msg) {
+  const meta = msg.metadata || {};
+  if (!meta.reply_to_id) return '';
+  const orig = messages.find(m => m.id === meta.reply_to_id);
+  if (!orig) return '';
+  const origSender = getStaffById(orig.sender_id);
+  const origName = origSender ? origSender.name : '不明';
+  let origBody = '';
+  if (orig.is_deleted) origBody = 'このメッセージは削除されました';
+  else if (orig.message_type === 'file') origBody = '📎 ファイル';
+  else if (orig.message_type === 'link') origBody = '🔗 業務リンク';
+  else if (orig.message_type === 'task') origBody = '📋 タスク';
+  else origBody = (orig.body || '').substring(0, 50) + ((orig.body || '').length > 50 ? '…' : '');
+  return `<div class="chat-reply-preview">
+    <span class="chat-reply-name">${escapeHtml(origName)}</span>
+    <span class="chat-reply-body">${escapeHtml(origBody)}</span>
+  </div>`;
+}
+
 function renderSlackMessage(msg, isGrouped) {
   if (msg.is_deleted) return renderDeletedMessage(msg, isGrouped);
   if (msg.message_type === 'system') return renderSystemDivider(msg);
+
+  const isOwn = msg.sender_id === currentStaff?.id;
+  const ownClass = isOwn ? ' chat-msg--own' : '';
+  const sender = getStaffById(msg.sender_id);
+  const senderName = sender ? sender.name : '不明';
+  const time = formatChatTime(msg.created_at);
+  const replyHtml = renderReplyPreview(msg);
+
   if (msg.message_type === 'task') return renderTaskCard(msg);
   if (msg.message_type === 'file') return renderFileMessage(msg, isGrouped);
   if (msg.message_type === 'link') return renderLinkCard(msg, isGrouped);
 
-  const sender = getStaffById(msg.sender_id);
-  const senderName = sender ? sender.name : '不明';
-  const time = formatChatTime(msg.created_at);
   const editedTag = msg.edited_at ? '<span class="chat-msg-edited">(編集済み)</span>' : '';
-  const actions = buildMsgActions(msg);
 
   if (isGrouped) {
-    return `<div class="chat-msg chat-msg--grouped" data-msg-id="${msg.id}">
-        <div class="chat-msg-avatar-spacer"></div>
-        <div class="chat-msg-content">
+    return `<div class="chat-msg chat-msg--grouped${ownClass}" data-msg-id="${msg.id}">
+        <div class="chat-msg-bubble">
+          ${replyHtml}
           <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}${editedTag}</div>
         </div>
         <span class="chat-msg-hover-time">${time}</span>
-        ${actions}
       </div>`;
   }
 
-  return `<div class="chat-msg" data-msg-id="${msg.id}">
-      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-header">
-          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
-          <span class="chat-msg-time">${time}</span>
+  const avatarHtml = isOwn ? '' : `<div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 32)}</div>`;
+
+  return `<div class="chat-msg${ownClass}" data-msg-id="${msg.id}">
+      ${avatarHtml}
+      <div class="chat-msg-bubble-wrap">
+        ${!isOwn ? `<span class="chat-msg-sender">${escapeHtml(senderName)}</span>` : ''}
+        <div class="chat-msg-bubble">
+          ${replyHtml}
+          <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}${editedTag}</div>
         </div>
-        <div class="chat-msg-body">${escapeHtml(msg.body).replace(/\n/g, '<br>')}${editedTag}</div>
+        <span class="chat-msg-time">${time}</span>
       </div>
-      ${actions}
     </div>`;
 }
 
 function renderDeletedMessage(msg, isGrouped) {
+  const isOwn = msg.sender_id === currentStaff?.id;
+  const ownClass = isOwn ? ' chat-msg--own' : '';
+  const time = formatChatTime(msg.created_at);
+
   if (isGrouped) {
-    return `<div class="chat-msg chat-msg--grouped chat-msg--deleted" data-msg-id="${msg.id}">
-        <div class="chat-msg-avatar-spacer"></div>
-        <div class="chat-msg-content"><div class="chat-msg-body chat-msg-deleted-text">このメッセージは削除されました</div></div>
+    return `<div class="chat-msg chat-msg--grouped chat-msg--deleted${ownClass}" data-msg-id="${msg.id}">
+        <div class="chat-msg-bubble chat-msg-bubble--deleted">
+          <div class="chat-msg-body chat-msg-deleted-text">このメッセージは削除されました</div>
+        </div>
       </div>`;
   }
+
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
-  const time = formatChatTime(msg.created_at);
-  return `<div class="chat-msg chat-msg--deleted" data-msg-id="${msg.id}">
-      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-header">
-          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
-          <span class="chat-msg-time">${time}</span>
+  const avatarHtml = isOwn ? '' : `<div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 32)}</div>`;
+
+  return `<div class="chat-msg chat-msg--deleted${ownClass}" data-msg-id="${msg.id}">
+      ${avatarHtml}
+      <div class="chat-msg-bubble-wrap">
+        ${!isOwn ? `<span class="chat-msg-sender">${escapeHtml(senderName)}</span>` : ''}
+        <div class="chat-msg-bubble chat-msg-bubble--deleted">
+          <div class="chat-msg-body chat-msg-deleted-text">このメッセージは削除されました</div>
         </div>
-        <div class="chat-msg-body chat-msg-deleted-text">このメッセージは削除されました</div>
+        <span class="chat-msg-time">${time}</span>
       </div>
     </div>`;
 }
 
 function renderTaskCard(msg) {
   const meta = msg.metadata || {};
+  const isOwn = msg.sender_id === currentStaff?.id;
+  const ownClass = isOwn ? ' chat-msg--own' : '';
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
-  const actions = buildMsgActions(msg);
-  return `<div class="chat-msg" data-msg-id="${msg.id}">
-      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-header">
-          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
-          <span class="chat-msg-time">${time}</span>
-        </div>
-        <div class="chat-task-card">
-          <div class="chat-task-header">
-            <span class="material-icons" style="font-size:18px;color:var(--primary-color)">assignment</span>
-            <span class="chat-task-label">${escapeHtml(meta.ref_label || '')}</span>
+  const replyHtml = renderReplyPreview(msg);
+  const avatarHtml = isOwn ? '' : `<div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 32)}</div>`;
+
+  return `<div class="chat-msg${ownClass}" data-msg-id="${msg.id}">
+      ${avatarHtml}
+      <div class="chat-msg-bubble-wrap">
+        ${!isOwn ? `<span class="chat-msg-sender">${escapeHtml(senderName)}</span>` : ''}
+        <div class="chat-msg-bubble">
+          ${replyHtml}
+          <div class="chat-task-card">
+            <div class="chat-task-header">
+              <span class="material-icons" style="font-size:18px;color:var(--primary-color)">assignment</span>
+              <span class="chat-task-label">${escapeHtml(meta.ref_label || '')}</span>
+            </div>
+            <div class="chat-task-body">${escapeHtml(msg.body)}</div>
+            ${meta.ref_type && meta.ref_id ? `<button class="btn btn-secondary chat-task-btn" onclick="window.memberApp.openRefFromChat('${escapeHtml(meta.ref_type)}','${escapeHtml(meta.ref_id)}')"><span class="material-icons" style="font-size:16px">open_in_new</span>詳細を開く</button>` : ''}
           </div>
-          <div class="chat-task-body">${escapeHtml(msg.body)}</div>
-          ${meta.ref_type && meta.ref_id ? `<button class="btn btn-secondary chat-task-btn" onclick="window.memberApp.openRefFromChat('${escapeHtml(meta.ref_type)}','${escapeHtml(meta.ref_id)}')"><span class="material-icons" style="font-size:16px">open_in_new</span>詳細を開く</button>` : ''}
         </div>
+        <span class="chat-msg-time">${time}</span>
       </div>
-      ${actions}
     </div>`;
 }
 
@@ -1052,7 +1145,6 @@ function renderFileMessage(msg, isGrouped) {
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
-  const actions = buildMsgActions(msg);
 
   let fileContent;
   if (isImage) {
@@ -1070,24 +1162,30 @@ function renderFileMessage(msg, isGrouped) {
       </a>`;
   }
 
+  const isOwn = msg.sender_id === currentStaff?.id;
+  const ownClass = isOwn ? ' chat-msg--own' : '';
+  const replyHtml = renderReplyPreview(msg);
+
   if (isGrouped) {
-    return `<div class="chat-msg chat-msg--grouped" data-msg-id="${msg.id}">
-        <div class="chat-msg-avatar-spacer"></div>
-        <div class="chat-msg-content">${fileContent}</div>
+    return `<div class="chat-msg chat-msg--grouped${ownClass}" data-msg-id="${msg.id}">
+        <div class="chat-msg-bubble">
+          ${replyHtml}
+          ${fileContent}
+        </div>
         <span class="chat-msg-hover-time">${time}</span>
-        ${actions}
       </div>`;
   }
-  return `<div class="chat-msg" data-msg-id="${msg.id}">
-      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-header">
-          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
-          <span class="chat-msg-time">${time}</span>
+  const avatarHtml = isOwn ? '' : `<div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 32)}</div>`;
+  return `<div class="chat-msg${ownClass}" data-msg-id="${msg.id}">
+      ${avatarHtml}
+      <div class="chat-msg-bubble-wrap">
+        ${!isOwn ? `<span class="chat-msg-sender">${escapeHtml(senderName)}</span>` : ''}
+        <div class="chat-msg-bubble">
+          ${replyHtml}
+          ${fileContent}
         </div>
-        ${fileContent}
+        <span class="chat-msg-time">${time}</span>
       </div>
-      ${actions}
     </div>`;
 }
 
@@ -1096,8 +1194,10 @@ function renderLinkCard(msg, isGrouped) {
   const sender = getStaffById(msg.sender_id);
   const senderName = sender ? sender.name : '不明';
   const time = formatChatTime(msg.created_at);
-  const actions = buildMsgActions(msg);
   const info = REF_TYPE_MAP[meta.ref_type] || { label: '', icon: 'link' };
+  const isOwn = msg.sender_id === currentStaff?.id;
+  const ownClass = isOwn ? ' chat-msg--own' : '';
+  const replyHtml = renderReplyPreview(msg);
 
   const linkContent = `<div class="chat-link-card" onclick="window.memberApp.openRefFromChat('${escapeHtml(meta.ref_type || '')}','${escapeHtml(meta.ref_id || '')}')">
       <div class="chat-link-card-icon"><span class="material-icons">${info.icon}</span></div>
@@ -1109,23 +1209,25 @@ function renderLinkCard(msg, isGrouped) {
     </div>`;
 
   if (isGrouped) {
-    return `<div class="chat-msg chat-msg--grouped" data-msg-id="${msg.id}">
-        <div class="chat-msg-avatar-spacer"></div>
-        <div class="chat-msg-content">${linkContent}</div>
+    return `<div class="chat-msg chat-msg--grouped${ownClass}" data-msg-id="${msg.id}">
+        <div class="chat-msg-bubble">
+          ${replyHtml}
+          ${linkContent}
+        </div>
         <span class="chat-msg-hover-time">${time}</span>
-        ${actions}
       </div>`;
   }
-  return `<div class="chat-msg" data-msg-id="${msg.id}">
-      <div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 36)}</div>
-      <div class="chat-msg-content">
-        <div class="chat-msg-header">
-          <span class="chat-msg-sender">${escapeHtml(senderName)}</span>
-          <span class="chat-msg-time">${time}</span>
+  const avatarHtml = isOwn ? '' : `<div class="chat-msg-avatar">${renderAvatar(msg.sender_id, 32)}</div>`;
+  return `<div class="chat-msg${ownClass}" data-msg-id="${msg.id}">
+      ${avatarHtml}
+      <div class="chat-msg-bubble-wrap">
+        ${!isOwn ? `<span class="chat-msg-sender">${escapeHtml(senderName)}</span>` : ''}
+        <div class="chat-msg-bubble">
+          ${replyHtml}
+          ${linkContent}
         </div>
-        ${linkContent}
+        <span class="chat-msg-time">${time}</span>
       </div>
-      ${actions}
     </div>`;
 }
 
@@ -1564,5 +1666,6 @@ export { chatEditMessage, chatSaveEdit, chatCancelEdit };
 export { chatDeleteMessage, chatConfirmDelete, chatCancelDelete };
 export { chatAttachFile };
 export { chatOpenLinkPicker, chatCloseLinkPicker, chatSelectLinkCategory, chatSearchLinkRecords, chatSendLinkMessage, chatLinkPickerBack };
-export { chatCtxCopy, chatCtxEdit, chatCtxDelete, chatCtxForward };
+export { chatCtxCopy, chatCtxEdit, chatCtxDelete, chatCtxForward, chatCtxReply };
 export { chatForwardTo, chatCloseForwardPicker };
+export { chatCancelReply };

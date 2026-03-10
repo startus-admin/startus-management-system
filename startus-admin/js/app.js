@@ -81,8 +81,9 @@ import {
   chatAttachFile,
   chatOpenLinkPicker, chatCloseLinkPicker, chatSelectLinkCategory,
   chatSearchLinkRecords, chatSendLinkMessage, chatLinkPickerBack,
-  chatCtxCopy, chatCtxEdit, chatCtxDelete,
-  chatCtxForward, chatForwardTo, chatCloseForwardPicker
+  chatCtxCopy, chatCtxEdit, chatCtxDelete, chatCtxReply,
+  chatCtxForward, chatForwardTo, chatCloseForwardPicker,
+  chatCancelReply
 } from './chat.js';
 import { initScheduleManager } from './sm-manager.js';
 import {
@@ -584,9 +585,11 @@ window.memberApp = {
   chatCtxCopy,
   chatCtxEdit,
   chatCtxDelete,
+  chatCtxReply,
   chatCtxForward,
   chatForwardTo,
   chatCloseForwardPicker,
+  chatCancelReply,
   toggleSearchBar,
   isAdmin,
   toggleSidebar,

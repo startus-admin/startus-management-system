@@ -4067,13 +4067,13 @@ select.form-control {
   line-height: 1;
 }
 
-/* ---- Message Thread (Slack-style) ---- */
+/* ---- Message Thread (LINE-style bubbles) ---- */
 
 .chat-thread-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  background: #e8e4df;
 }
 
 .chat-messages-scroll {
@@ -4084,57 +4084,100 @@ select.form-control {
   flex-direction: column;
 }
 
-/* Slack-style message row */
+/* LINE-style message row */
 .chat-msg {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 4px 16px;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 2px 12px;
   position: relative;
-  transition: background 0.15s;
-}
-
-.chat-msg:hover {
-  background: var(--gray-50);
+  max-width: 100%;
 }
 
 .chat-msg:not(.chat-msg--grouped) {
-  padding-top: 8px;
-  margin-top: 4px;
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+/* Own messages: right-aligned */
+.chat-msg--own {
+  flex-direction: row-reverse;
 }
 
 .chat-msg-avatar {
   flex-shrink: 0;
-  width: 36px;
-  padding-top: 2px;
+  width: 32px;
+  align-self: flex-start;
+  padding-top: 18px;
 }
 
-.chat-msg-avatar-spacer {
-  width: 36px;
-  flex-shrink: 0;
-}
-
-.chat-msg-content {
-  flex: 1;
+.chat-msg-bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 75%;
   min-width: 0;
 }
 
-.chat-msg-header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 1px;
+.chat-msg--own .chat-msg-bubble-wrap {
+  align-items: flex-end;
 }
 
 .chat-msg-sender {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--gray-900);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-bottom: 2px;
+  padding-left: 4px;
+}
+
+.chat-msg-bubble {
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: #fff;
+  position: relative;
+  word-break: break-word;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.06);
+}
+
+/* Other's bubble: rounded except top-left */
+.chat-msg:not(.chat-msg--own):not(.chat-msg--grouped) .chat-msg-bubble {
+  border-top-left-radius: 4px;
+}
+
+.chat-msg--grouped:not(.chat-msg--own) .chat-msg-bubble {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+/* Own bubble: green background, rounded except top-right */
+.chat-msg--own .chat-msg-bubble {
+  background: #b2f0a8;
+}
+
+.chat-msg--own:not(.chat-msg--grouped) .chat-msg-bubble {
+  border-top-right-radius: 4px;
+}
+
+.chat-msg--own.chat-msg--grouped .chat-msg-bubble {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+/* Deleted bubble */
+.chat-msg-bubble--deleted {
+  background: var(--gray-100) !important;
 }
 
 .chat-msg-time {
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   color: var(--gray-400);
+  margin-top: 2px;
+  padding-left: 4px;
+}
+
+.chat-msg--own .chat-msg-time {
+  padding-left: 0;
+  padding-right: 4px;
 }
 
 .chat-msg-body {
@@ -4146,19 +4189,91 @@ select.form-control {
 
 /* Hover timestamp for grouped messages */
 .chat-msg-hover-time {
-  position: absolute;
-  left: 4px;
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 0.6rem;
   color: var(--gray-400);
   opacity: 0;
   transition: opacity 0.15s;
   pointer-events: none;
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .chat-msg--grouped:hover .chat-msg-hover-time {
   opacity: 1;
+}
+
+/* Grouped messages: no avatar, tighter spacing */
+.chat-msg--grouped {
+  padding-top: 1px;
+}
+
+.chat-msg--grouped:not(.chat-msg--own) {
+  padding-left: 50px;
+}
+
+/* Reply preview inside bubble */
+.chat-reply-preview {
+  background: rgba(0,0,0,0.06);
+  border-left: 3px solid var(--primary-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.chat-reply-name {
+  font-weight: 700;
+  color: var(--primary-color);
+  font-size: 0.72rem;
+}
+
+.chat-reply-body {
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Reply bar above input */
+.chat-reply-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.chat-reply-bar-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-reply-bar-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-reply-bar-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.chat-reply-bar-body {
+  font-size: 0.78rem;
+  color: var(--gray-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Date separator */
@@ -4199,14 +4314,13 @@ select.form-control {
   display: inline-block;
 }
 
-/* Task card (in Slack message row) */
+/* Task card (in bubble) */
 .chat-task-card {
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.08);
   border-left: 3px solid var(--primary-color);
   border-radius: var(--radius-md);
   padding: 10px 12px;
-  margin-top: 4px;
   max-width: 100%;
 }
 
@@ -4239,7 +4353,7 @@ select.form-control {
 
 .chat-input-area {
   padding: 8px 12px 12px;
-  background: white;
+  background: #e8e4df;
   flex-shrink: 0;
 }
 
@@ -4596,12 +4710,12 @@ select.form-control {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.08);
   border-radius: var(--radius-md);
   padding: 10px 12px;
-  margin-top: 4px;
   max-width: 300px;
+  text-decoration: none;
 }
 
 .chat-file-icon {
@@ -4879,13 +4993,13 @@ select.form-control {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.08);
   border-left: 3px solid var(--primary-color);
   border-radius: var(--radius-md);
   padding: 10px 12px;
-  margin-top: 4px;
   max-width: 100%;
+  cursor: pointer;
 }
 
 .chat-link-card-icon {
