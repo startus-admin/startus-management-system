@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
-import { getActiveClassrooms, getClassrooms } from './classroom.js';
+import { getActiveClassrooms, getClassrooms, getSubClassesForTag } from './classroom.js';
 import { tagToName, tagsToNames, getSubClassesFromArray } from './class-utils.js';
 import { renderFeeSection, initFeeSection, loadAllFees, getCurrentFiscalYear } from './fees.js';
 import { logActivity } from './history.js';
@@ -360,10 +360,25 @@ function openMemberForm(member) {
   const title = isEdit ? '会員編集' : '会員追加';
   const m = member || {};
 
+  const memberClasses = m.classes || [];
+  const memberSubClasses = getSubClassesFromArray(memberClasses);
   const classroomCheckboxes = getActiveClassrooms().map(c => {
     const tag = c.calendar_tag || c.name;
-    const checked = (m.classes || []).includes(tag) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" name="classroom_cb" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
+    const checked = memberClasses.includes(tag) ? 'checked' : '';
+    const subClasses = c.sub_classes || [];
+    let subClassHtml = '';
+    if (subClasses.length > 0) {
+      const selectedSub = memberSubClasses.find(sc => subClasses.includes(sc)) || '';
+      const radios = subClasses.map(sc => {
+        const scChecked = sc === selectedSub ? 'checked' : '';
+        return `<label class="sub-class-radio"><input type="radio" name="sub_${tag}" value="${escapeHtml(sc)}" ${scChecked}>${escapeHtml(sc)}</label>`;
+      }).join('');
+      subClassHtml = `<div class="sub-class-options" data-tag="${escapeHtml(tag)}" style="${checked ? '' : 'display:none'}">${radios}</div>`;
+    }
+    return `<div class="classroom-cb-wrap">
+      <label class="filter-pill"><input type="checkbox" name="classroom_cb" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>
+      ${subClassHtml}
+    </div>`;
   }).join('');
 
   const photoSection = isEdit ? `
@@ -451,11 +466,6 @@ function openMemberForm(member) {
           ${classroomCheckboxes}
         </div>
       </div>
-      <div class="form-group">
-        <label>サブクラス</label>
-        <input type="text" name="sub_class" value="${escapeHtml(getSubClassesFromArray(m.classes).join('/'))}" placeholder="例: パラ, ジャンプ">
-        <p class="form-hint">教室内のクラス分け（パラ/一般、ホップ/ステップ/ジャンプ等）</p>
-      </div>
       <div class="form-row">
         <div class="form-group">
           <label>学校</label>
@@ -485,6 +495,14 @@ function openMemberForm(member) {
   openModal(title, content);
 
   setTimeout(() => {
+    // 教室チェックボックス変更時にサブクラス選択肢を表示/非表示
+    document.querySelectorAll('#classroom-checkboxes input[name="classroom_cb"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const subOpts = cb.closest('.classroom-cb-wrap')?.querySelector('.sub-class-options');
+        if (subOpts) subOpts.style.display = cb.checked ? '' : 'none';
+      });
+    });
+
     const form = document.getElementById('member-form');
     if (form) {
       form.addEventListener('submit', (e) => {
@@ -499,9 +517,12 @@ async function saveMember(form, id) {
   const fd = new FormData(form);
   const classroomTags = [...document.querySelectorAll('#classroom-checkboxes input[name="classroom_cb"]:checked')]
     .map(cb => cb.value);
-  // サブクラスを classes 配列に追加（教室タグの後に）
-  const subClassValue = (fd.get('sub_class') || '').trim();
-  const subClasses = subClassValue ? subClassValue.split(/[\/,、]/).map(s => s.trim()).filter(Boolean) : [];
+  // チェックされた教室ごとに選択されたサブクラスを収集
+  const subClasses = [];
+  for (const tag of classroomTags) {
+    const selected = document.querySelector(`input[name="sub_${tag}"]:checked`);
+    if (selected && selected.value) subClasses.push(selected.value);
+  }
   const classesArray = [...classroomTags, ...subClasses];
 
   const data = {

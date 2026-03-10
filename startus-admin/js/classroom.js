@@ -60,6 +60,13 @@ export function getActiveClassrooms() {
   return classroomCache.filter(c => c.is_active);
 }
 
+/** calendar_tag から教室のサブクラス配列を返す */
+export function getSubClassesForTag(tag) {
+  if (!tag) return [];
+  const c = classroomCache.find(cr => cr.calendar_tag === tag);
+  return (c && c.sub_classes) ? c.sub_classes : [];
+}
+
 // --- ヘルパー ---
 
 function dayBadgesHtml(days) {
@@ -440,6 +447,13 @@ function openClassroomForm(classroom) {
               複数の教室に同じ名前を設定すると、出欠管理で一画面にまとめて表示されます
             </small>
           </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>サブクラス</label>
+            <input type="text" name="sub_classes" value="${escapeHtml((c.sub_classes || []).join(' / '))}" placeholder="例: パラ / 一般">
+            <small style="color:var(--gray-500);font-size:11px;margin-top:2px;display:block">
+              スラッシュ（/）区切りで入力。入力した順番が並び順になります。会員編集時に選択肢として表示されます
+            </small>
+          </div>
         </div>
       </fieldset>
 
@@ -505,6 +519,7 @@ async function saveClassroom(form, id) {
     furikae_group: fd.get('furikae_group').trim(),
     attendance_group: fd.get('attendance_group').trim(),
     class_code: fd.get('class_code').trim(),
+    sub_classes: (fd.get('sub_classes') || '').split(/[\/,、]/).map(s => s.trim()).filter(Boolean),
     memo: fd.get('memo').trim(),
   };
 
