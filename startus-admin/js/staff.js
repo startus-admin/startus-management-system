@@ -3,7 +3,7 @@ import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { isAdmin } from './auth.js';
 import { getActiveClassrooms } from './classroom.js';
-import { tagToName } from './class-utils.js';
+import { tagToName, getSubClassesFromArray } from './class-utils.js';
 
 let allStaff = [];
 let filteredStaff = [];
@@ -87,7 +87,7 @@ function applyFiltersAndRender() {
   }
 
   // ソート
-  const ROLE_ORDER = { '事務局': 0, '指導者': 1, 'スタッフ': 2 };
+  const ROLE_ORDER = { '事務局': 0, '指導者': 1, 'メインコーチ': 2, 'サブコーチ': 3, 'アシスタント': 4, 'スタッフ': 5 };
   result.sort((a, b) => {
     switch (staffSortKey) {
       case 'role': return (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || (a.name || '').localeCompare(b.name || '', 'ja');
@@ -269,6 +269,7 @@ export function showStaffDetail(id) {
       <div class="detail-row"><span class="detail-label">電話番号</span><span class="detail-value">${escapeHtml(s.phone) || '-'}${phoneCopy}</span></div>
       <div class="detail-row"><span class="detail-label">メール</span><span class="detail-value">${escapeHtml(s.email) || '-'}${emailCopy}</span></div>
       <div class="detail-row"><span class="detail-label">担当教室</span><span class="detail-value">${classesDisplay}</span></div>
+      <div class="detail-row"><span class="detail-label">サブクラス</span><span class="detail-value">${getSubClassesFromArray(s.classes).join(' / ') || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">出欠アプリ表示</span><span class="detail-value">${s.show_in_attendance !== false ? '<span class="badge badge-status badge-status-active">表示</span>' : '<span class="badge badge-status badge-status-withdrawn">非表示</span>'}</span></div>
       <div class="detail-row"><span class="detail-label">登録日</span><span class="detail-value">${formatDate(s.joined_date) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">メモ</span><span class="detail-value">${escapeHtml(s.note) || '-'}</span></div>
@@ -304,10 +305,25 @@ function openStaffForm(staff) {
   const title = isEdit ? 'スタッフ編集' : 'スタッフ追加';
   const s = staff || {};
 
+  const staffClasses = s.classes || [];
+  const staffSubClasses = getSubClassesFromArray(staffClasses);
   const classroomCheckboxes = getActiveClassrooms().map(c => {
     const tag = c.calendar_tag || c.name;
-    const checked = (s.classes || []).includes(tag) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" name="staff_classroom_cb" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
+    const checked = staffClasses.includes(tag) ? 'checked' : '';
+    const subClasses = c.sub_classes || [];
+    let subClassHtml = '';
+    if (subClasses.length > 0) {
+      const selectedSub = staffSubClasses.find(sc => subClasses.includes(sc)) || '';
+      const radios = subClasses.map(sc => {
+        const scChecked = sc === selectedSub ? 'checked' : '';
+        return `<label class="sub-class-radio"><input type="radio" name="sub_${tag}" value="${escapeHtml(sc)}" ${scChecked}>${escapeHtml(sc)}</label>`;
+      }).join('');
+      subClassHtml = `<div class="sub-class-options" data-tag="${escapeHtml(tag)}" style="${checked ? '' : 'display:none'}">${radios}</div>`;
+    }
+    return `<div class="classroom-cb-wrap">
+      <label class="filter-pill"><input type="checkbox" name="staff_classroom_cb" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>
+      ${subClassHtml}
+    </div>`;
   }).join('');
 
   const content = `
@@ -326,6 +342,9 @@ function openStaffForm(staff) {
           <select name="role">
             <option value="スタッフ" ${s.role === 'スタッフ' || !s.role ? 'selected' : ''}>スタッフ</option>
             <option value="指導者" ${s.role === '指導者' ? 'selected' : ''}>指導者</option>
+            <option value="メインコーチ" ${s.role === 'メインコーチ' ? 'selected' : ''}>メインコーチ</option>
+            <option value="サブコーチ" ${s.role === 'サブコーチ' ? 'selected' : ''}>サブコーチ</option>
+            <option value="アシスタント" ${s.role === 'アシスタント' ? 'selected' : ''}>アシスタント</option>
             <option value="事務局" ${s.role === '事務局' ? 'selected' : ''}>事務局</option>
           </select>
         </div>
@@ -398,13 +417,27 @@ function openStaffForm(staff) {
         saveStaff(form, isEdit ? s.id : null);
       });
     }
+    // Show/hide sub-class options when classroom checkbox changes
+    document.querySelectorAll('#staff-classroom-checkboxes input[name="staff_classroom_cb"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const subOpts = cb.closest('.classroom-cb-wrap')?.querySelector('.sub-class-options');
+        if (subOpts) subOpts.style.display = cb.checked ? '' : 'none';
+      });
+    });
   }, 100);
 }
 
 async function saveStaff(form, id) {
   const fd = new FormData(form);
-  const classesArray = [...document.querySelectorAll('#staff-classroom-checkboxes input[name="staff_classroom_cb"]:checked')]
+  const classroomTags = [...document.querySelectorAll('#staff-classroom-checkboxes input[name="staff_classroom_cb"]:checked')]
     .map(cb => cb.value);
+  // Collect selected sub-classes for each checked classroom
+  const subClasses = [];
+  for (const tag of classroomTags) {
+    const selected = document.querySelector(`input[name="sub_${tag}"]:checked`);
+    if (selected && selected.value) subClasses.push(selected.value);
+  }
+  const classesArray = [...classroomTags, ...subClasses];
 
   const data = {
     name: fd.get('name'),
