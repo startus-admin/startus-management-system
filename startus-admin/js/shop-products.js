@@ -7,6 +7,8 @@ import { showToast, openModal, closeModal, setModalWide } from './app.js';
 let allProducts = [];
 let filteredProducts = [];
 let searchQuery = '';
+let pendingImageFiles = [];  // Files queued for upload
+let imagesToDelete = [];     // Existing image IDs to delete on save
 
 // Size presets
 const SIZE_PRESETS = {
@@ -167,10 +169,24 @@ export function openProductEditForm(productId) {
 function openProductForm(product) {
   const isEdit = !!product;
   const variants = isEdit ? (product.product_variants || []).filter(v => !v.deletedAt) : [];
+  const existingImages = isEdit ? (product.product_images || []).sort((a, b) => a.sortOrder - b.sortOrder) : [];
+
+  // Reset image state
+  pendingImageFiles = [];
+  imagesToDelete = [];
 
   const presetOptions = Object.keys(SIZE_PRESETS).map(k => `<option value="${k}">${k}</option>`).join('');
 
   const variantRowsHtml = variants.map((v, i) => buildVariantRowHtml(v, i)).join('');
+
+  const existingImagesHtml = existingImages.map(img => `
+    <div class="sp-image-item" data-image-id="${img.id}">
+      <img src="${img.url}" alt="${escapeHtml(img.altText || '')}">
+      <button type="button" class="sp-image-remove" onclick="window.memberApp.removeExistingImage('${img.id}', this)" title="削除">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+  `).join('');
 
   const content = `
     <form id="shop-product-form" onsubmit="window.memberApp.saveProduct(event, ${isEdit ? `'${product.id}'` : 'null'})">
@@ -194,6 +210,18 @@ function openProductForm(product) {
             <option value="false" ${isEdit && !product.isActive ? 'selected' : ''}>非公開</option>
           </select>
         </div>
+      </div>
+
+      <h4 style="margin:16px 0 8px">商品画像</h4>
+      <div class="sp-image-upload-area">
+        <div class="sp-image-preview-list" id="sp-image-preview-list">
+          ${existingImagesHtml}
+        </div>
+        <label class="sp-image-add-btn" id="sp-image-add-btn">
+          <span class="material-icons">add_photo_alternate</span>
+          <span>画像を追加</span>
+          <input type="file" accept="image/*" multiple style="display:none" onchange="window.memberApp.handleImageSelect(event)">
+        </label>
       </div>
 
       <h4 style="margin:16px 0 8px">バリアント</h4>
@@ -282,6 +310,121 @@ export function applyPreset() {
   sel.value = '';
 }
 
+// --- Image handling ---
+export function handleImageSelect(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+
+  const previewList = document.getElementById('sp-image-preview-list');
+  if (!previewList) return;
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('画像は5MB以下にしてください', 'error');
+      continue;
+    }
+
+    const idx = pendingImageFiles.length;
+    pendingImageFiles.push(file);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const div = document.createElement('div');
+      div.className = 'sp-image-item';
+      div.dataset.pendingIdx = idx;
+      div.innerHTML = `
+        <img src="${e.target.result}" alt="">
+        <button type="button" class="sp-image-remove" onclick="window.memberApp.removePendingImage(${idx}, this)" title="削除">
+          <span class="material-icons">close</span>
+        </button>
+      `;
+      previewList.appendChild(div);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Reset file input so the same file can be selected again
+  event.target.value = '';
+}
+
+export function removePendingImage(idx, btn) {
+  pendingImageFiles[idx] = null; // Mark as removed
+  btn.closest('.sp-image-item').remove();
+}
+
+export function removeExistingImage(imageId, btn) {
+  imagesToDelete.push(imageId);
+  btn.closest('.sp-image-item').remove();
+}
+
+async function uploadProductImages(productId) {
+  // 1. Delete removed images
+  for (const imageId of imagesToDelete) {
+    // Get the image path to delete from storage
+    const { data: img } = await shopSupabase
+      .from('product_images')
+      .select('url')
+      .eq('id', imageId)
+      .single();
+
+    if (img && img.url) {
+      // Extract storage path from URL
+      const urlPath = img.url.split('/product-images/')[1];
+      if (urlPath) {
+        await shopSupabase.storage.from(SHOP_STORAGE_BUCKET).remove([urlPath]);
+      }
+    }
+
+    await shopSupabase.from('product_images').delete().eq('id', imageId);
+  }
+
+  // 2. Get current max sortOrder
+  const { data: existingImgs } = await shopSupabase
+    .from('product_images')
+    .select('sortOrder')
+    .eq('productId', productId)
+    .order('sortOrder', { ascending: false })
+    .limit(1);
+
+  let nextSort = (existingImgs && existingImgs.length > 0) ? (existingImgs[0].sortOrder + 1) : 0;
+
+  // 3. Upload new images
+  for (const file of pendingImageFiles) {
+    if (!file) continue; // Skip removed entries
+
+    const ext = file.name.split('.').pop() || 'jpg';
+    const filePath = `${productId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error: uploadErr } = await shopSupabase.storage
+      .from(SHOP_STORAGE_BUCKET)
+      .upload(filePath, file, { contentType: file.type, upsert: false });
+
+    if (uploadErr) {
+      console.error('画像アップロードエラー:', uploadErr);
+      showToast('画像のアップロードに失敗しました', 'error');
+      continue;
+    }
+
+    const { data: publicUrlData } = shopSupabase.storage
+      .from(SHOP_STORAGE_BUCKET)
+      .getPublicUrl(filePath);
+
+    const { error: insertErr } = await shopSupabase
+      .from('product_images')
+      .insert({
+        productId,
+        url: publicUrlData.publicUrl,
+        altText: '',
+        sortOrder: nextSort++,
+      });
+
+    if (insertErr) {
+      console.error('画像レコード保存エラー:', insertErr);
+    }
+  }
+}
+
 // --- Save product ---
 export async function saveProduct(event, productId) {
   event.preventDefault();
@@ -320,11 +463,18 @@ export async function saveProduct(event, productId) {
   }
 
   try {
+    let savedProductId = productId;
     if (productId) {
       await updateProduct(productId, { name, description, price, isActive }, variants);
     } else {
-      await createProduct({ name, description, price, isActive }, variants);
+      savedProductId = await createProduct({ name, description, price, isActive }, variants);
     }
+
+    // Upload/delete images
+    if (savedProductId && (pendingImageFiles.some(f => f) || imagesToDelete.length > 0)) {
+      await uploadProductImages(savedProductId);
+    }
+
     showToast(productId ? '商品を更新しました' : '商品を追加しました', 'success');
     closeModal();
     await loadShopProducts();
@@ -384,6 +534,8 @@ async function createProduct(productData, variants) {
 
     if (iErr) throw new Error(iErr.message);
   }
+
+  return product.id;
 }
 
 async function updateProduct(productId, productData, variants) {

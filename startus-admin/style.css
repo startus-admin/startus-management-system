@@ -7444,6 +7444,82 @@ select.form-control {
   flex-shrink: 0;
 }
 
+/* --- Shop image upload (form) --- */
+.sp-image-upload-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.sp-image-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sp-image-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+.sp-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sp-image-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sp-image-item:hover .sp-image-remove {
+  opacity: 1;
+}
+.sp-image-remove .material-icons {
+  font-size: 16px;
+}
+.sp-image-add-btn {
+  width: 100px;
+  height: 100px;
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--gray-400);
+  font-size: 12px;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.sp-image-add-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.sp-image-add-btn .material-icons {
+  font-size: 28px;
+}
+
 /* --- Shop variant row (form) --- */
 .shop-variant-row {
   background: var(--gray-50);

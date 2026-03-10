@@ -90,7 +90,8 @@ import {
 import {
   loadShopProducts, showProductDetail, openProductAddForm,
   openProductEditForm, deleteProduct, addVariantRow, applyPreset,
-  saveProduct, initShopProductSearch
+  saveProduct, initShopProductSearch,
+  handleImageSelect, removePendingImage, removeExistingImage
 } from './shop-products.js';
 import { loadShopInventory } from './shop-inventory.js';
 import {
@@ -634,6 +635,9 @@ window.memberApp = {
   addVariantRow,
   applyPreset,
   saveProduct,
+  handleImageSelect,
+  removePendingImage,
+  removeExistingImage,
   loadShopInventory,
   loadShopCustomers,
   showCustomerDetail,
