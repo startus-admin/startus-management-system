@@ -8047,140 +8047,69 @@ select.form-control {
   }
 }
 
-/* ===== App Preview Screen (出欠管理アプリ) ===== */
+/* ===== App Launch Screen (アプリ画面) ===== */
 
-#app-preview-screen {
+.app-launch-container {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.app-launch-card {
   display: flex;
   flex-direction: column;
-}
-
-.app-preview-toolbar {
-  display: flex;
   align-items: center;
-  padding: 6px 12px;
-  background: var(--gray-50);
-  border-bottom: 1px solid var(--gray-200);
-  gap: 8px;
-}
-
-.app-preview-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--gray-700);
-  margin: 0;
-  white-space: nowrap;
-}
-
-.app-preview-title .material-icons {
-  font-size: 20px;
-  color: var(--primary-color);
-}
-
-.app-preview-devices {
-  display: flex;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.app-preview-device-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-md);
+  gap: 16px;
+  padding: 40px 48px;
   background: white;
-  color: var(--gray-600);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition);
-  font-family: inherit;
+  text-align: center;
+  max-width: 360px;
 }
 
-.app-preview-device-btn .material-icons { font-size: 18px; }
-.app-preview-device-btn:hover { background: var(--gray-100); }
-
-.app-preview-device-btn.active {
-  background: var(--primary-color);
-  color: white;
+.app-launch-card:hover {
   border-color: var(--primary-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
 }
 
-.app-preview-open {
+.app-launch-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-md);
-  background: white;
-  color: var(--gray-600);
-  cursor: pointer;
-  transition: all var(--transition);
-  font-family: inherit;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: #e3f2fd;
+  color: #1976d2;
 }
 
-.app-preview-open:hover { background: var(--gray-100); }
-.app-preview-open .material-icons { font-size: 18px; }
-
-.app-preview-container {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: stretch;
-  background: white;
-  min-height: 0;
-  overflow: hidden;
+.app-launch-icon .material-icons {
+  font-size: 36px;
 }
 
-.app-preview-container.device-mode {
-  background: #d1d5db;
-  padding: 24px;
-  overflow: auto;
-  align-items: flex-start;
+.app-launch-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin: 0;
 }
 
-.app-preview-frame {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: white;
-  position: relative;
-  transition: width 0.3s ease, height 0.3s ease;
+.app-launch-desc {
+  font-size: 0.9rem;
+  color: var(--gray-500);
+  margin: 0;
+  line-height: 1.5;
 }
 
-#app-preview-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  display: block;
+.app-launch-btn {
+  margin-top: 4px;
+  gap: 6px;
 }
 
-#app-preview-screen .app-preview-container {
-  flex: 1;
-  height: calc(100vh - 90px);
-}
-
-.app-preview-loading {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: white;
-  color: var(--gray-400);
-  gap: 12px;
-  z-index: 2;
-}
-
-.app-preview-loading .material-icons { font-size: 32px; }
-.app-preview-loading p { font-size: 0.9rem; margin: 0; }
-
-@media (max-width: 768px) {
-  .app-preview-devices { display: none; }
+.app-launch-btn .material-icons {
+  font-size: 18px;
 }

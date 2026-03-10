@@ -641,33 +641,20 @@
 
     <!-- ===== アプリ画面（出欠管理アプリ） ===== -->
     <main class="main-content" id="app-preview-screen" style="display:none">
-      <div class="app-preview-toolbar">
-        <h2 class="app-preview-title">
-          <span class="material-icons">fact_check</span>
-          出欠管理アプリ
-        </h2>
-        <div class="app-preview-devices">
-          <button class="app-preview-device-btn active" data-device="desktop" onclick="window.memberApp.setAppPreviewDevice('desktop')">
-            <span class="material-icons">desktop_windows</span>
-          </button>
-          <button class="app-preview-device-btn" data-device="tablet" onclick="window.memberApp.setAppPreviewDevice('tablet')">
-            <span class="material-icons">tablet_mac</span>
-          </button>
-          <button class="app-preview-device-btn" data-device="mobile" onclick="window.memberApp.setAppPreviewDevice('mobile')">
-            <span class="material-icons">phone_iphone</span>
-          </button>
-        </div>
-        <button class="app-preview-open" onclick="window.memberApp.openAttendanceApp()" title="新しいタブで開く">
-          <span class="material-icons">open_in_new</span>
-        </button>
+      <div class="section-header">
+        <h2>アプリ画面</h2>
       </div>
-      <div class="app-preview-container" id="app-preview-container">
-        <div class="app-preview-frame" id="app-preview-frame">
-          <div class="app-preview-loading" id="app-preview-loading">
-            <span class="material-icons rotating">refresh</span>
-            <p>読み込み中...</p>
+      <div class="app-launch-container">
+        <div class="app-launch-card" onclick="window.memberApp.openAttendanceApp()">
+          <div class="app-launch-icon">
+            <span class="material-icons">fact_check</span>
           </div>
-          <iframe id="app-preview-iframe" src="" frameborder="0" onload="document.getElementById('app-preview-loading').style.display='none'"></iframe>
+          <h3 class="app-launch-title">出欠管理アプリ</h3>
+          <p class="app-launch-desc">教室ごとの出欠記録・統計・レポート出力</p>
+          <button class="btn btn-primary app-launch-btn">
+            <span class="material-icons">open_in_new</span>
+            アプリを開く
+          </button>
         </div>
       </div>
     </main>
