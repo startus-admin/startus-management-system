@@ -4,6 +4,7 @@
 // 会員詳細モーダルに出欠記録を表示する
 
 import { supabase } from './supabase.js';
+import { getActiveAppViews } from './attendance-app-views.js';
 
 // ============================================
 // 会員の出欠履歴を読み込んで HTML を返す
@@ -22,6 +23,7 @@ export async function loadMemberAttendance(memberId) {
           date,
           classroom_id,
           attendance_group,
+          view_id,
           classrooms ( name )
         )
       `)
@@ -61,9 +63,16 @@ export async function loadMemberAttendance(memberId) {
     for (const r of records) {
       const event = r.attendance_events;
       const date = event?.date || '不明';
-      const classroomLabel = event?.attendance_group
-        ? `[合同] ${event.attendance_group}`
-        : (event?.classrooms?.name || '');
+      let classroomLabel = '';
+      if (event?.view_id) {
+        const views = getActiveAppViews();
+        const v = views.find(v => v.id === event.view_id);
+        classroomLabel = v ? `[ビュー] ${v.name}` : '';
+      } else if (event?.attendance_group) {
+        classroomLabel = `[合同] ${event.attendance_group}`;
+      } else {
+        classroomLabel = event?.classrooms?.name || '';
+      }
       const statusClass = r.status === 'present' ? 'att-present' : 'att-absent';
       const statusLabel = r.status === 'present' ? '出席' : '欠席';
 

@@ -8,6 +8,7 @@ import { escapeHtml } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { getActiveClassrooms } from './classroom.js';
 import { tagToName, getSubClassesFromArray } from './class-utils.js';
+import { getActiveAppViews } from './attendance-app-views.js';
 
 let initialized = false;
 let classrooms = [];
@@ -59,17 +60,17 @@ function buildFilters() {
 
   // 教室セレクト
   const classroomSelect = document.getElementById('att-mgmt-classroom');
-  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+  const views = getActiveAppViews();
   let classroomOpts = '<option value="">全教室</option>';
-  if (groups.length > 0) {
-    classroomOpts += '<optgroup label="合同グループ">';
-    for (const g of groups) {
-      classroomOpts += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+  if (views.length > 0) {
+    classroomOpts += '<optgroup label="ビュー">';
+    for (const v of views) {
+      classroomOpts += `<option value="view:${v.id}">[ビュー] ${escapeHtml(v.name)}</option>`;
     }
     classroomOpts += '</optgroup><optgroup label="教室">';
   }
   classroomOpts += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  if (groups.length > 0) classroomOpts += '</optgroup>';
+  if (views.length > 0) classroomOpts += '</optgroup>';
   classroomSelect.innerHTML = classroomOpts;
 }
 
@@ -83,10 +84,12 @@ export async function renderAttendanceList() {
   try {
     let query = supabase
       .from('attendance_events')
-      .select('id, date, classroom_id, attendance_group, note, classrooms(name)')
+      .select('id, date, classroom_id, attendance_group, view_id, note, classrooms(name)')
       .order('date', { ascending: false });
 
-    if (currentClassroom && currentClassroom.startsWith('group:')) {
+    if (currentClassroom && currentClassroom.startsWith('view:')) {
+      query = query.eq('view_id', currentClassroom.replace('view:', ''));
+    } else if (currentClassroom && currentClassroom.startsWith('group:')) {
       query = query.eq('attendance_group', currentClassroom.replace('group:', ''));
     } else if (currentClassroom) {
       query = query.eq('classroom_id', currentClassroom);
@@ -130,7 +133,11 @@ export async function renderAttendanceList() {
     allEvents = events.map(e => ({
       ...e,
       classroomName: e.classrooms?.name || '',
-      displayLabel: e.attendance_group ? `[合同] ${e.attendance_group}` : (e.classrooms?.name || ''),
+      displayLabel: e.view_id
+        ? `[ビュー] ${getViewName(e.view_id)}`
+        : e.attendance_group
+          ? `[合同] ${e.attendance_group}`
+          : (e.classrooms?.name || ''),
       present: countMap[e.id]?.present || 0,
       absent: countMap[e.id]?.absent || 0
     }));
@@ -243,18 +250,18 @@ function sortAndRenderEvents() {
 // ============================================
 export function openCreateEventModal() {
   const today = new Date().toISOString().split('T')[0];
-  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+  const views = getActiveAppViews();
 
   let selectOptions = '<option value="">選択してください</option>';
-  if (groups.length > 0) {
-    selectOptions += '<optgroup label="合同グループ">';
-    for (const g of groups) {
-      selectOptions += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+  if (views.length > 0) {
+    selectOptions += '<optgroup label="ビュー">';
+    for (const v of views) {
+      selectOptions += `<option value="view:${v.id}">[ビュー] ${escapeHtml(v.name)}</option>`;
     }
     selectOptions += '</optgroup><optgroup label="単独教室">';
   }
   selectOptions += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  if (groups.length > 0) selectOptions += '</optgroup>';
+  if (views.length > 0) selectOptions += '</optgroup>';
 
   const content = `
     <div class="form-group">
@@ -262,7 +269,7 @@ export function openCreateEventModal() {
       <input type="date" id="new-event-date" value="${today}" class="form-control">
     </div>
     <div class="form-group">
-      <label>教室 / 合同グループ</label>
+      <label>教室 / ビュー</label>
       <select id="new-event-classroom" class="form-control">
         ${selectOptions}
       </select>
@@ -302,8 +309,20 @@ async function createEvent() {
 
   let classroomId;
   let attendanceGroup = '';
+  let viewId = null;
 
-  if (selection.startsWith('group:')) {
+  if (selection.startsWith('view:')) {
+    viewId = selection.replace('view:', '');
+    const views = getActiveAppViews();
+    const view = views.find(v => v.id === viewId);
+    if (!view || !view.classroom_tags || view.classroom_tags.length === 0) {
+      showToast('ビューに教室が設定されていません', 'error');
+      return null;
+    }
+    const firstTag = view.classroom_tags[0];
+    const matched = classrooms.find(c => c.calendar_tag === firstTag);
+    classroomId = matched ? matched.id : classrooms[0]?.id;
+  } else if (selection.startsWith('group:')) {
     attendanceGroup = selection.replace('group:', '');
     const groupClassrooms = classrooms.filter(c => c.attendance_group === attendanceGroup);
     if (groupClassrooms.length === 0) {
@@ -317,7 +336,7 @@ async function createEvent() {
 
   const { data, error } = await supabase
     .from('attendance_events')
-    .insert({ date, classroom_id: classroomId, attendance_group: attendanceGroup, note })
+    .insert({ date, classroom_id: classroomId, attendance_group: attendanceGroup, view_id: viewId, note })
     .select()
     .single();
 
@@ -353,7 +372,7 @@ export async function openAttendanceModal(eventId) {
   // イベント情報を取得
   const { data: event, error: evErr } = await supabase
     .from('attendance_events')
-    .select('id, date, classroom_id, attendance_group, note, classrooms(name)')
+    .select('id, date, classroom_id, attendance_group, view_id, note, classrooms(name)')
     .eq('id', eventId)
     .single();
 
@@ -366,7 +385,14 @@ export async function openAttendanceModal(eventId) {
   let targetClassroomTags = [];
   let displayTitle = '';
 
-  if (event.attendance_group) {
+  if (event.view_id) {
+    const views = getActiveAppViews();
+    const view = views.find(v => v.id === event.view_id);
+    if (view) {
+      targetClassroomTags = view.classroom_tags || [];
+      displayTitle = `[ビュー] ${view.name}`;
+    }
+  } else if (event.attendance_group) {
     const groupClassrooms = classrooms.filter(c => c.attendance_group === event.attendance_group);
     targetClassroomTags = groupClassrooms.map(c => c.calendar_tag).filter(Boolean);
     displayTitle = `[合同] ${event.attendance_group}`;
@@ -379,7 +405,7 @@ export async function openAttendanceModal(eventId) {
 
   // 教室に所属する会員を取得（複数教室対応・重複排除）
   let members = [];
-  const isGroupEvent = !!event.attendance_group;
+  const isGroupEvent = !!(event.view_id || event.attendance_group);
   if (targetClassroomTags.length > 0) {
     const results = await Promise.all(
       targetClassroomTags.map(tag =>
@@ -613,21 +639,23 @@ export async function editEvent(eventId) {
   const ev = allEvents.find(e => e.id === eventId);
   if (!ev) return;
 
-  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
-  const currentValue = ev.attendance_group ? `group:${ev.attendance_group}` : ev.classroom_id;
+  const views = getActiveAppViews();
+  const currentValue = ev.view_id ? `view:${ev.view_id}`
+    : ev.attendance_group ? `group:${ev.attendance_group}`
+    : ev.classroom_id;
 
   let selectOptions = '<option value="">選択してください</option>';
-  if (groups.length > 0) {
-    selectOptions += '<optgroup label="合同グループ">';
-    for (const g of groups) {
-      selectOptions += `<option value="group:${escapeHtml(g)}" ${currentValue === `group:${g}` ? 'selected' : ''}>[合同] ${escapeHtml(g)}</option>`;
+  if (views.length > 0) {
+    selectOptions += '<optgroup label="ビュー">';
+    for (const v of views) {
+      selectOptions += `<option value="view:${v.id}" ${currentValue === `view:${v.id}` ? 'selected' : ''}>[ビュー] ${escapeHtml(v.name)}</option>`;
     }
     selectOptions += '</optgroup><optgroup label="単独教室">';
   }
   selectOptions += classrooms.map(c =>
-    `<option value="${c.id}" ${!ev.attendance_group && c.id === ev.classroom_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+    `<option value="${c.id}" ${!ev.view_id && !ev.attendance_group && c.id === ev.classroom_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
   ).join('');
-  if (groups.length > 0) selectOptions += '</optgroup>';
+  if (views.length > 0) selectOptions += '</optgroup>';
 
   const content = `
     <div class="form-group">
@@ -635,7 +663,7 @@ export async function editEvent(eventId) {
       <input type="date" id="edit-event-date" value="${ev.date}" class="form-control">
     </div>
     <div class="form-group">
-      <label>教室 / 合同グループ</label>
+      <label>教室 / ビュー</label>
       <select id="edit-event-classroom" class="form-control">
         ${selectOptions}
       </select>
@@ -665,8 +693,20 @@ export async function saveEventEdit(eventId) {
 
   let classroomId;
   let attendanceGroup = '';
+  let viewId = null;
 
-  if (selection.startsWith('group:')) {
+  if (selection.startsWith('view:')) {
+    viewId = selection.replace('view:', '');
+    const views = getActiveAppViews();
+    const view = views.find(v => v.id === viewId);
+    if (!view || !view.classroom_tags || view.classroom_tags.length === 0) {
+      showToast('ビューに教室が設定されていません', 'error');
+      return;
+    }
+    const firstTag = view.classroom_tags[0];
+    const matched = classrooms.find(c => c.calendar_tag === firstTag);
+    classroomId = matched ? matched.id : classrooms[0]?.id;
+  } else if (selection.startsWith('group:')) {
     attendanceGroup = selection.replace('group:', '');
     const groupClassrooms = classrooms.filter(c => c.attendance_group === attendanceGroup);
     if (groupClassrooms.length === 0) {
@@ -680,7 +720,7 @@ export async function saveEventEdit(eventId) {
 
   const { error } = await supabase
     .from('attendance_events')
-    .update({ date, classroom_id: classroomId, attendance_group: attendanceGroup, note })
+    .update({ date, classroom_id: classroomId, attendance_group: attendanceGroup, view_id: viewId, note })
     .eq('id', eventId);
 
   if (error) {
@@ -733,6 +773,13 @@ export async function deleteEvent(eventId) {
 // ============================================
 // ヘルパー
 // ============================================
+
+function getViewName(viewId) {
+  const views = getActiveAppViews();
+  const v = views.find(v => v.id === viewId);
+  return v ? v.name : '';
+}
+
 function formatDateShort(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr + 'T00:00:00');

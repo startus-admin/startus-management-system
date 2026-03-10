@@ -106,6 +106,11 @@ import {
   openAttendanceModal, switchAttModalTab, toggleAttendance, bulkSetAttendance, saveAttendance,
   editEvent, saveEventEdit, confirmDeleteEvent, deleteEvent
 } from './attendance.js';
+import {
+  initAppViews, loadAppViews,
+  openViewAddForm, openViewEditForm,
+  confirmDeleteView, deleteView
+} from './attendance-app-views.js';
 
 // --- Toast ---
 
@@ -343,6 +348,7 @@ async function showApp(email) {
     if (tabName === 'settings') { renderAppSettings(); }
     if (tabName === 'attendance') initAttendance();
     if (tabName === 'attendance-stats') initAttendanceStats();
+    if (tabName === 'app-preview') initAppViews();
     if (tabName === 'shop-preview') initShopPreview();
     if (tabName === 'shop-orders') loadShopOrders();
     if (tabName === 'shop-products') loadShopProducts();
@@ -380,6 +386,7 @@ async function showApp(email) {
 
   // データ読み込み
   await loadClassrooms();
+  await loadAppViews();
   await loadStaff();
   await loadStaffCalendars();
   loadMembers();
@@ -616,8 +623,12 @@ window.memberApp = {
   loadShopInventory,
   loadShopCustomers,
   showCustomerDetail,
-  // App Preview
+  // App Preview / Attendance App Views
   openAttendanceApp,
+  openViewAddForm,
+  openViewEditForm,
+  confirmDeleteView,
+  deleteView,
   // Attendance
   initAttendance,
   openCreateEventModal,

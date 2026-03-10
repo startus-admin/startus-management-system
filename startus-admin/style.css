@@ -8796,3 +8796,87 @@ select.form-control {
 .app-launch-btn .material-icons {
   font-size: 18px;
 }
+
+/* ===== Attendance App Views ===== */
+
+.av-launch-row {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.av-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.av-row-inactive {
+  opacity: 0.5;
+}
+
+.av-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.av-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.av-row-classrooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.av-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.av-row-order {
+  color: var(--gray-400);
+  font-size: 12px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.av-classroom-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.av-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.av-checkbox-label:hover {
+  border-color: var(--primary-color);
+}
+
+.av-checkbox-label.checked {
+  background: var(--primary-light, #e8f0fe);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.av-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-color);
+}

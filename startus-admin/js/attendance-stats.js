@@ -6,6 +6,7 @@
 import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { tagToName } from './class-utils.js';
+import { getActiveAppViews } from './attendance-app-views.js';
 
 let initialized = false;
 let classrooms = [];
@@ -81,19 +82,19 @@ function buildFilters() {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   periodSelect.value = currentMonth;
 
-  // 教室（グループ対応）
+  // 教室（ビュー対応）
   const classroomSelect = document.getElementById('att-stats-classroom');
-  const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
+  const views = getActiveAppViews();
   let classroomOpts = '<option value="">全教室</option>';
-  if (groups.length > 0) {
-    classroomOpts += '<optgroup label="合同グループ">';
-    for (const g of groups) {
-      classroomOpts += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+  if (views.length > 0) {
+    classroomOpts += '<optgroup label="ビュー">';
+    for (const v of views) {
+      classroomOpts += `<option value="view:${v.id}">[ビュー] ${escapeHtml(v.name)}</option>`;
     }
     classroomOpts += '</optgroup><optgroup label="教室">';
   }
   classroomOpts += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  if (groups.length > 0) classroomOpts += '</optgroup>';
+  if (views.length > 0) classroomOpts += '</optgroup>';
   classroomSelect.innerHTML = classroomOpts;
 }
 
@@ -108,10 +109,12 @@ async function loadAttendanceStats() {
     // イベントを取得
     let eventsQuery = supabase
       .from('attendance_events')
-      .select('id, date, classroom_id, attendance_group, classrooms(name)')
+      .select('id, date, classroom_id, attendance_group, view_id, classrooms(name)')
       .order('date', { ascending: false });
 
-    if (classroomId && classroomId.startsWith('group:')) {
+    if (classroomId && classroomId.startsWith('view:')) {
+      eventsQuery = eventsQuery.eq('view_id', classroomId.replace('view:', ''));
+    } else if (classroomId && classroomId.startsWith('group:')) {
       eventsQuery = eventsQuery.eq('attendance_group', classroomId.replace('group:', ''));
     } else if (classroomId) {
       eventsQuery = eventsQuery.eq('classroom_id', classroomId);
@@ -484,7 +487,7 @@ function toggleDetail(personId, btn) {
   const details = personRecords
     .map(r => ({
       date: eventMap[r.event_id]?.date || '',
-      classroomName: eventMap[r.event_id]?.attendance_group || eventMap[r.event_id]?.classrooms?.name || '-',
+      classroomName: getEventLabel(eventMap[r.event_id]),
       status: r.status
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -529,6 +532,17 @@ function renderEmpty() {
 // ============================================
 // ユーティリティ
 // ============================================
+
+function getEventLabel(event) {
+  if (!event) return '-';
+  if (event.view_id) {
+    const views = getActiveAppViews();
+    const v = views.find(v => v.id === event.view_id);
+    return v ? v.name : '-';
+  }
+  return event.attendance_group || event.classrooms?.name || '-';
+}
+
 function getRateClass(rate) {
   if (rate >= 80) return 'rate-high';
   if (rate >= 50) return 'rate-mid';
