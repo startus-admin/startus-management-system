@@ -8165,6 +8165,41 @@ select.form-control {
   color: var(--primary-dark);
 }
 
+/* Section header (member / staff) */
+.att-section {
+  margin-bottom: 20px;
+}
+
+.att-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+  background: var(--gray-50);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.att-section-header .material-icons {
+  font-size: 18px;
+  color: var(--primary-color);
+}
+
+.att-section-count {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--gray-500);
+}
+
+.att-section .att-stats-tbl {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
 /* Sortable headers */
 .att-sortable {
   cursor: pointer;

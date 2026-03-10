@@ -272,16 +272,43 @@ function applyClientFilters() {
     filtered = filtered.filter(r => r.rate < 50);
   }
 
-  // 種別フィルタ
-  if (typeFilter === 'member') {
-    filtered = filtered.filter(r => r.type === 'member');
-  } else if (typeFilter === 'staff') {
-    filtered = filtered.filter(r => r.type === 'staff');
+  // メンバーとスタッフを分離
+  const members = filtered.filter(r => r.type === 'member');
+  const staff = filtered.filter(r => r.type === 'staff');
+
+  // 種別フィルタによる表示制御
+  const showMembers = typeFilter !== 'staff';
+  const showStaff = typeFilter !== 'member';
+
+  let html = '';
+
+  // メンバーセクション
+  if (showMembers) {
+    const sortedMembers = sortRows(members);
+    html += renderTableHtml(sortedMembers, 'メンバー', 'people');
   }
 
-  // ソート適用
-  const sorted = sortRows(filtered);
-  renderTable(sorted);
+  // スタッフセクション
+  if (showStaff && staff.length > 0) {
+    const sortedStaff = sortRows(staff);
+    html += renderTableHtml(sortedStaff, 'スタッフ', 'badge');
+  }
+
+  if (!html) {
+    html = '<p style="color:var(--gray-400);padding:20px;text-align:center">データがありません</p>';
+  }
+
+  document.getElementById('att-stats-table').innerHTML = html;
+
+  // ソートヘッダーのイベントリスナー
+  document.querySelectorAll('.att-sortable').forEach(th => {
+    th.addEventListener('click', () => onSortClick(th.dataset.sort));
+  });
+
+  // 展開ボタンのイベントリスナー
+  document.querySelectorAll('.att-expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => toggleDetail(btn.dataset.personId, btn));
+  });
 }
 
 // ============================================
@@ -347,15 +374,9 @@ function renderSummary(events, persons, avgRate) {
 }
 
 // ============================================
-// テーブル表示
+// テーブルHTML生成
 // ============================================
-function renderTable(rows) {
-  if (rows.length === 0) {
-    document.getElementById('att-stats-table').innerHTML =
-      '<p style="color:var(--gray-400);padding:20px;text-align:center">データがありません</p>';
-    return;
-  }
-
+function renderTableHtml(rows, sectionLabel, sectionIcon) {
   const sortIcon = (key) => {
     if (currentSort.key !== key) return '<span class="material-icons att-sort-icon">unfold_more</span>';
     return currentSort.asc
@@ -363,7 +384,21 @@ function renderTable(rows) {
       : '<span class="material-icons att-sort-icon att-sort-active">arrow_downward</span>';
   };
 
-  let html = `<table class="att-stats-tbl">
+  let html = `
+    <div class="att-section">
+      <div class="att-section-header">
+        <span class="material-icons">${sectionIcon}</span>
+        <span>${sectionLabel}</span>
+        <span class="att-section-count">${rows.length}名</span>
+      </div>`;
+
+  if (rows.length === 0) {
+    html += '<p style="color:var(--gray-400);padding:16px;text-align:center;font-size:13px">データがありません</p>';
+    html += '</div>';
+    return html;
+  }
+
+  html += `<table class="att-stats-tbl">
     <thead>
       <tr>
         <th class="att-sortable" data-sort="name">名前 ${sortIcon('name')}</th>
@@ -378,7 +413,7 @@ function renderTable(rows) {
     <tbody>`;
 
   for (const r of rows) {
-    const classLabel = r.type === 'staff' ? '<span class="badge badge-staff">スタッフ</span>' :
+    const classLabel = r.type === 'staff' ? '' :
       (r.classes.length > 0 ? r.classes.map(c => `<span class="badge badge-class">${escapeHtml(tagToName(c))}</span>`).join(' ') : '-');
 
     // 皆勤・低出席ハイライト
@@ -427,18 +462,8 @@ function renderTable(rows) {
       </tr>`;
   }
 
-  html += '</tbody></table>';
-  document.getElementById('att-stats-table').innerHTML = html;
-
-  // ソートヘッダーのイベントリスナー
-  document.querySelectorAll('.att-sortable').forEach(th => {
-    th.addEventListener('click', () => onSortClick(th.dataset.sort));
-  });
-
-  // 展開ボタンのイベントリスナー
-  document.querySelectorAll('.att-expand-btn').forEach(btn => {
-    btn.addEventListener('click', () => toggleDetail(btn.dataset.personId, btn));
-  });
+  html += '</tbody></table></div>';
+  return html;
 }
 
 // ============================================
