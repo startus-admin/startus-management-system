@@ -27,9 +27,12 @@ export async function initAttendance() {
   classrooms = getActiveClassrooms();
 
   buildFilters();
-  buildClassroomTabs();
 
   document.getElementById('att-mgmt-period').addEventListener('change', renderAttendanceList);
+  document.getElementById('att-mgmt-classroom').addEventListener('change', () => {
+    currentClassroom = document.getElementById('att-mgmt-classroom').value;
+    renderAttendanceList();
+  });
 
   await renderAttendanceList();
 }
@@ -38,6 +41,7 @@ export async function initAttendance() {
 // フィルタ構築
 // ============================================
 function buildFilters() {
+  // 期間セレクト
   const periodSelect = document.getElementById('att-mgmt-period');
   const now = new Date();
   let opts = '<option value="all">全期間</option>';
@@ -51,31 +55,21 @@ function buildFilters() {
   periodSelect.innerHTML = opts;
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   periodSelect.value = currentMonth;
-}
 
-function buildClassroomTabs() {
-  const tabsEl = document.getElementById('att-mgmt-tabs');
+  // 教室セレクト
+  const classroomSelect = document.getElementById('att-mgmt-classroom');
   const groups = [...new Set(classrooms.filter(c => c.attendance_group).map(c => c.attendance_group))];
-
-  let html = `<button class="att-stats-tab active" data-classroom="">全教室</button>`;
-  for (const g of groups) {
-    html += `<button class="att-stats-tab" data-classroom="group:${escapeHtml(g)}">${escapeHtml(g)}</button>`;
+  let classroomOpts = '<option value="">全教室</option>';
+  if (groups.length > 0) {
+    classroomOpts += '<optgroup label="合同グループ">';
+    for (const g of groups) {
+      classroomOpts += `<option value="group:${escapeHtml(g)}">[合同] ${escapeHtml(g)}</option>`;
+    }
+    classroomOpts += '</optgroup><optgroup label="教室">';
   }
-  for (const c of classrooms) {
-    // 合同グループに属する教室はグループタブでカバーされるのでスキップ
-    if (c.attendance_group) continue;
-    html += `<button class="att-stats-tab" data-classroom="${c.id}">${escapeHtml(c.name)}</button>`;
-  }
-  tabsEl.innerHTML = html;
-
-  tabsEl.querySelectorAll('.att-stats-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      currentClassroom = tab.dataset.classroom;
-      tabsEl.querySelectorAll('.att-stats-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      renderAttendanceList();
-    });
-  });
+  classroomOpts += classrooms.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (groups.length > 0) classroomOpts += '</optgroup>';
+  classroomSelect.innerHTML = classroomOpts;
 }
 
 // ============================================
