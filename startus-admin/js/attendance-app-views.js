@@ -415,10 +415,31 @@ function openViewForm(view) {
         e.preventDefault();
         saveView(form, isEdit ? v.id : null);
       });
-      // チェックボックスのスタイル更新
+
+      const nameInput = form.querySelector('[name="name"]');
+      let autoFilledName = '';
+
+      // チェックボックスのスタイル更新 + 教室名自動入力
       form.querySelectorAll('.av-checkbox-label input').forEach(cb => {
         cb.addEventListener('change', () => {
           cb.parentElement.classList.toggle('checked', cb.checked);
+
+          // 新規追加時: チェックが1つなら教室名を自動入力
+          if (!isEdit && nameInput) {
+            const checked = form.querySelectorAll('[name="classroom_tags"]:checked');
+            if (checked.length === 1) {
+              const classroomName = checked[0].parentElement.textContent.trim();
+              // 名前が空か前回の自動入力値なら上書き
+              if (!nameInput.value || nameInput.value === autoFilledName) {
+                nameInput.value = classroomName;
+                autoFilledName = classroomName;
+              }
+            } else if (checked.length !== 1 && nameInput.value === autoFilledName) {
+              // 複数or0個になったら自動入力をクリア
+              nameInput.value = '';
+              autoFilledName = '';
+            }
+          }
         });
       });
     }
