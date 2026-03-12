@@ -108,7 +108,6 @@ const APP_CHECKLIST_ITEMS = {
       { key: 'info_confirm',    label: '申請情報確認' },
       { key: 'contact_confirm', label: '連絡先確認' },
       { key: 'receipt',         label: '届出受付' },
-      { key: 'trial_confirm',   label: '体験参加確認' },
     ],
     approval: [
       { key: 'member_register',  label: '会員情報登録', action: 'register_member' },
