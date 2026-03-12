@@ -57,6 +57,59 @@ export function getSubClassesFromArray(classes) {
   return classes.filter(c => !tagSet.has(c));
 }
 
+/** 全教室のサブクラス名を一つの Set として返す */
+export function getAllKnownSubClasses() {
+  const classrooms = getClassrooms();
+  const subSet = new Set();
+  for (const c of classrooms) {
+    if (c.sub_classes && c.sub_classes.length) {
+      for (const sc of c.sub_classes) subSet.add(sc);
+    }
+  }
+  return subSet;
+}
+
+// --- fuzzy match ---
+
+/** 2つの文字列の類似度を 0〜1 で返す（1=完全一致） */
+function levenshteinSimilarity(a, b) {
+  if (a === b) return 1;
+  if (!a || !b) return 0;
+  const la = a.length, lb = b.length;
+  const maxLen = Math.max(la, lb);
+  if (maxLen === 0) return 1;
+
+  const prev = Array.from({ length: lb + 1 }, (_, j) => j);
+  for (let i = 1; i <= la; i++) {
+    let corner = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= lb; j++) {
+      const old = prev[j];
+      prev[j] = a[i - 1] === b[j - 1]
+        ? corner
+        : Math.min(corner, prev[j - 1], prev[j]) + 1;
+      corner = old;
+    }
+  }
+  return (maxLen - prev[lb]) / maxLen;
+}
+
+/** 名前に最も近い教室を返す（類似度 0.6 以上） */
+export function findClosestClassroom(name) {
+  if (!name) return null;
+  const classrooms = getClassrooms();
+  let best = null;
+  let bestScore = 0;
+  for (const c of classrooms) {
+    const score = levenshteinSimilarity(name, c.name);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return bestScore >= 0.6 ? { classroom: best, score: bestScore } : null;
+}
+
 // --- lookup ---
 
 export function getClassroomByTag(tag) {

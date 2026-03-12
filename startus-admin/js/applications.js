@@ -636,6 +636,16 @@ export async function showApplicationDetail(id) {
       </div>`;
   }).filter(Boolean).join('');
 
+  // 教室名の不一致チェック
+  const desiredClasses = Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []);
+  const classroomNameSet = new Set(getClassrooms().map(c => c.name).filter(Boolean));
+  const unmatchedAppClasses = desiredClasses.filter(n => n && !classroomNameSet.has(n));
+  const classWarningHtml = unmatchedAppClasses.length > 0 ? `
+    <div class="app-class-warning">
+      <span class="material-icons">warning</span>
+      <span>教室名「${unmatchedAppClasses.map(c => escapeHtml(c)).join('」「')}」が登録済みの教室と一致しません。申請内容の教室名を確認してください。</span>
+    </div>` : '';
+
   // form_data内の未定義フィールドも表示
   const definedKeys = new Set(fields.map(f => f.key));
   const extraRows = Object.entries(fd)
@@ -720,6 +730,7 @@ export async function showApplicationDetail(id) {
         ${detailRows}
         ${extraRows}
       </div>
+      ${classWarningHtml}
     </div>
 
     ${buildPhaseChecklistSection(app, 'reception', '受付チェック', 'fact_check')}
@@ -1538,6 +1549,14 @@ async function actionRegisterMember(app) {
     return;
   }
 
+  // 教室名の不一致チェック
+  const classNames = Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []);
+  const classNameSet = new Set(getClassrooms().map(c => c.name).filter(Boolean));
+  const unmatched = classNames.filter(n => n && !classNameSet.has(n));
+  if (unmatched.length > 0) {
+    if (!confirm(`教室名「${unmatched.join('」「')}」が登録済みの教室と一致しません。\nそのまま処理を続けますか？`)) return;
+  }
+
   const memberData = {
     name: fd.name || '',
     furigana: fd.furigana || '',
@@ -1569,7 +1588,16 @@ async function actionRegisterMember(app) {
 
 async function actionAddToClass(app) {
   const fd = app.form_data || {};
-  const targetClasses = namesToTags(Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []));
+
+  // 教室名の不一致チェック
+  const classNames = Array.isArray(fd.desired_classes) ? fd.desired_classes : (fd.desired_classes ? [fd.desired_classes] : []);
+  const classNameSet = new Set(getClassrooms().map(c => c.name).filter(Boolean));
+  const unmatched = classNames.filter(n => n && !classNameSet.has(n));
+  if (unmatched.length > 0) {
+    if (!confirm(`教室名「${unmatched.join('」「')}」が登録済みの教室と一致しません。\nそのまま処理を続けますか？`)) return;
+  }
+
+  const targetClasses = namesToTags(classNames);
 
   if (targetClasses.length === 0) {
     showToast('教室情報がありません', 'error');

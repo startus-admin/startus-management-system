@@ -2,7 +2,8 @@ import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast, openModal, closeModal } from './app.js';
 import { loadMembers, getAllMembers } from './members.js';
-import { namesToTags } from './class-utils.js';
+import { namesToTags, findClosestClassroom } from './class-utils.js';
+import { getClassrooms } from './classroom.js';
 
 // ヘッダーマッピング（柔軟判定）
 const HEADER_MAP = {
@@ -34,6 +35,7 @@ const COL_LABELS = {
 
 let importData = [];
 let duplicateFlags = []; // 各行の重複情報
+let unmatchedClassMap = new Map(); // 不一致教室名 → { count, suggestion }
 
 // Excelシリアル値 → YYYY-MM-DD 変換
 function parseBirthdate(value) {
@@ -58,6 +60,7 @@ function parseBirthdate(value) {
 export function openImportModal() {
   importData = [];
   duplicateFlags = [];
+  unmatchedClassMap = new Map();
   const content = `
     <div id="import-dropzone" class="import-dropzone">
       <span class="material-icons import-icon">cloud_upload</span>
@@ -69,6 +72,7 @@ export function openImportModal() {
     </div>
     <div id="import-preview" style="display:none">
       <div id="import-dup-warning" class="import-dup-warning" style="display:none"></div>
+      <div id="import-class-warning" class="import-dup-warning" style="display:none"></div>
       <div id="import-preview-table-wrap" class="import-table-wrap"></div>
       <p id="import-count" class="import-count"></p>
       <div class="form-actions">
@@ -130,6 +134,7 @@ async function handleFileSelect(e) {
   });
 
   checkDuplicates();
+  validateImportClassrooms();
   renderPreview(columnMap);
 }
 
@@ -155,6 +160,54 @@ function checkDuplicates() {
     }
     return reasons;
   });
+}
+
+// --- 教室名バリデーション ---
+
+function validateImportClassrooms() {
+  const classrooms = getClassrooms();
+  const nameSet = new Set(classrooms.map(c => c.name).filter(Boolean));
+  unmatchedClassMap = new Map();
+
+  importData.forEach(row => {
+    if (!row.classes) return;
+    const names = row.classes.split(/[,、・]/).map(s => s.trim()).filter(Boolean);
+    names.forEach(name => {
+      if (!nameSet.has(name) && !unmatchedClassMap.has(name)) {
+        unmatchedClassMap.set(name, {
+          count: 0,
+          suggestion: findClosestClassroom(name),
+        });
+      }
+      if (unmatchedClassMap.has(name)) {
+        unmatchedClassMap.get(name).count++;
+      }
+    });
+  });
+}
+
+export function applyImportClassCorrections() {
+  const selects = document.querySelectorAll('.import-class-select');
+  const corrections = new Map();
+  selects.forEach(sel => {
+    if (sel.value) corrections.set(sel.dataset.original, sel.value);
+  });
+
+  if (corrections.size === 0) {
+    showToast('修正する項目を選択してください', 'info');
+    return;
+  }
+
+  importData.forEach(row => {
+    if (!row.classes) return;
+    const names = row.classes.split(/[,、・]/).map(s => s.trim()).filter(Boolean);
+    const corrected = names.map(n => corrections.get(n) || n);
+    row.classes = corrected.join('・');
+  });
+
+  validateImportClassrooms();
+  renderPreview(null);
+  showToast(`${corrections.size}件の教室名を修正しました`, 'success');
 }
 
 function mapHeaders(headers) {
@@ -193,6 +246,46 @@ function renderPreview(columnMap) {
         <span>${dupCount}件の重複が見つかりました（黄色の行）。重複行を除外するか、そのままインポートできます。</span>`;
     } else {
       dupWarning.style.display = 'none';
+    }
+  }
+
+  // 教室名不一致警告
+  const classWarning = document.getElementById('import-class-warning');
+  if (classWarning) {
+    if (unmatchedClassMap.size > 0) {
+      const allClassrooms = getClassrooms();
+      const classOptions = allClassrooms.map(c =>
+        `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`
+      ).join('');
+
+      let rows = '';
+      for (const [original, info] of unmatchedClassMap) {
+        const suggestedName = info.suggestion ? info.suggestion.classroom.name : '';
+        const opts = allClassrooms.map(c => {
+          const sel = c.name === suggestedName ? ' selected' : '';
+          return `<option value="${escapeHtml(c.name)}"${sel}>${escapeHtml(c.name)}</option>`;
+        }).join('');
+        rows += `
+          <div class="import-class-row">
+            <span class="import-class-original">"${escapeHtml(original)}" (${info.count}件)</span>
+            <span class="material-icons" style="font-size:16px;color:var(--gray-400)">arrow_forward</span>
+            <select class="import-class-select" data-original="${escapeHtml(original)}">
+              <option value="">（変更しない）</option>
+              ${opts}
+            </select>
+          </div>`;
+      }
+      classWarning.style.display = 'block';
+      classWarning.innerHTML = `
+        <span class="material-icons">warning</span>
+        <div>
+          <p>${unmatchedClassMap.size}件の教室名が登録済みの教室と一致しません：</p>
+          <div class="import-class-corrections">${rows}</div>
+          <button class="btn btn-secondary btn-sm" style="margin-top:8px"
+            onclick="window.memberApp.applyImportClassCorrections()">修正を適用</button>
+        </div>`;
+    } else {
+      classWarning.style.display = 'none';
     }
   }
 

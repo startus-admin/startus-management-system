@@ -7,9 +7,11 @@ import {
   toggleSelectAll, toggleSelectOne, clearSelection,
   executeBulkStatus, doBulkStatus,
   executeBulkAddClass, doBulkAddClass,
+  executeBulkChangeClass, doBulkChangeClass,
+  executeBulkRemoveClass, doBulkRemoveClass,
   confirmBulkDelete, doBulkDelete
 } from './members.js';
-import { openImportModal, removeImportRow, executeImport } from './import.js';
+import { openImportModal, removeImportRow, executeImport, applyImportClassCorrections } from './import.js';
 import { exportCSV, exportApplicationsCSV, exportTrialsCSV, exportTransfersCSV } from './export.js';
 import { openFeeEditForm, onFiscalYearChange, cancelFeeEdit } from './fees.js';
 import { initTabs, switchTab, getCurrentTab, toggleSidebar, toggleSidebarCollapse } from './views.js';
@@ -556,8 +558,13 @@ window.memberApp = {
   doBulkStatus,
   executeBulkAddClass,
   doBulkAddClass,
+  executeBulkChangeClass,
+  doBulkChangeClass,
+  executeBulkRemoveClass,
+  doBulkRemoveClass,
   confirmBulkDelete,
   doBulkDelete,
+  applyImportClassCorrections,
   navigateCalendarDay,
   goToCalendarToday,
   refreshCalendar,

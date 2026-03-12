@@ -2,7 +2,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { getActiveClassrooms, getClassrooms, getSubClassesForTag } from './classroom.js';
-import { tagToName, tagsToNames, getSubClassesFromArray } from './class-utils.js';
+import { tagToName, tagsToNames, getSubClassesFromArray, getAllKnownSubClasses } from './class-utils.js';
 import { renderFeeSection, initFeeSection, loadAllFees, getCurrentFiscalYear } from './fees.js';
 import { logActivity } from './history.js';
 import { loadMemberAttendance } from './attendance-view.js';
@@ -241,28 +241,50 @@ function updateClassFilterOptions() {
   const container = document.getElementById('class-filter-options');
   if (!container) return;
 
-  // マスタデータから教室フィルタを生成（calendar_tagをvalueに使用）
   const allClassrooms = getClassrooms();
-  const options = allClassrooms.map(c => {
-    const tag = c.calendar_tag || c.name;
-    const checked = filters.classes.includes(tag) ? 'checked' : '';
-    return `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
-  });
-
-  // マスタにない旧データもフォールバック表示
   const masterTags = new Set(allClassrooms.map(c => c.calendar_tag).filter(Boolean));
+  const knownSubClasses = getAllKnownSubClasses();
+
+  // 会員データからサブクラスとorphanを分類
+  const memberSubClasses = new Set();
   const orphanClasses = new Set();
   allMembers.forEach(m => {
     (m.classes || []).forEach(c => {
-      if (!masterTags.has(c)) orphanClasses.add(c);
+      if (!masterTags.has(c)) {
+        if (knownSubClasses.has(c)) memberSubClasses.add(c);
+        else orphanClasses.add(c);
+      }
     });
   });
-  [...orphanClasses].sort((a, b) => tagToName(a).localeCompare(tagToName(b), 'ja')).forEach(c => {
-    const checked = filters.classes.includes(c) ? 'checked' : '';
-    options.push(`<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c)}" ${checked}>${escapeHtml(tagToName(c))}</label>`);
-  });
 
-  container.innerHTML = options.join('');
+  // セクション1: 教室（マスタ登録済み）
+  let html = allClassrooms.map(c => {
+    const tag = c.calendar_tag || c.name;
+    const checked = filters.classes.includes(tag) ? 'checked' : '';
+    return `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(tag)}" ${checked}>${escapeHtml(c.name)}</label>`;
+  }).join('');
+
+  // セクション2: サブクラス
+  if (memberSubClasses.size > 0) {
+    const sorted = [...memberSubClasses].sort((a, b) => a.localeCompare(b, 'ja'));
+    html += `<div class="filter-group-label">サブクラス</div>`;
+    sorted.forEach(sc => {
+      const checked = filters.classes.includes(sc) ? 'checked' : '';
+      html += `<label class="filter-pill filter-pill-sub"><input type="checkbox" value="${escapeHtml(sc)}" ${checked}>${escapeHtml(sc)}</label>`;
+    });
+  }
+
+  // セクション3: その他（orphan — インポートミス等）
+  if (orphanClasses.size > 0) {
+    const sorted = [...orphanClasses].sort((a, b) => tagToName(a).localeCompare(tagToName(b), 'ja'));
+    html += `<div class="filter-group-label">その他</div>`;
+    sorted.forEach(c => {
+      const checked = filters.classes.includes(c) ? 'checked' : '';
+      html += `<label class="filter-pill filter-pill-orphan"><input type="checkbox" value="${escapeHtml(c)}" ${checked}>${escapeHtml(tagToName(c))}</label>`;
+    });
+  }
+
+  container.innerHTML = html;
 
   container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
@@ -782,6 +804,20 @@ function renderBulkBar() {
   const classOptions = getActiveClassrooms().map(c =>
     `<option value="${escapeHtml(c.calendar_tag || c.name)}">${escapeHtml(c.name)}</option>`
   ).join('');
+  // orphan classes（選択中の会員が持つ、マスタにない教室名）を変更元・削除用に収集
+  const masterTags = new Set(getClassrooms().map(c => c.calendar_tag).filter(Boolean));
+  const selectedMembers = [...selectedIds].map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  const orphanInSelected = new Set();
+  selectedMembers.forEach(m => {
+    (m.classes || []).forEach(c => {
+      if (!masterTags.has(c)) orphanInSelected.add(c);
+    });
+  });
+  const orphanOptions = [...orphanInSelected].sort().map(c =>
+    `<option value="${escapeHtml(c)}">${escapeHtml(tagToName(c))} ⚠</option>`
+  ).join('');
+  const allClassOptions = classOptions + orphanOptions;
+
   bar.innerHTML = `
     <div class="bulk-bar-left">
       <button class="btn-bulk-clear" onclick="window.memberApp.clearSelection()">
@@ -790,25 +826,48 @@ function renderBulkBar() {
       <span>${selectedIds.size}件選択中</span>
     </div>
     <div class="bulk-bar-right">
-      <select id="bulk-status-select">
-        <option value="">ステータス変更</option>
-        <option value="在籍">→ 在籍</option>
-        <option value="休会">→ 休会</option>
-        <option value="退会">→ 退会</option>
-      </select>
-      <button class="btn btn-sm btn-bulk-action" onclick="window.memberApp.executeBulkStatus()">
-        <span class="material-icons">sync</span>適用
-      </button>
-      <select id="bulk-class-select" style="margin-left:8px">
-        <option value="">教室追加</option>
-        ${classOptions}
-      </select>
-      <button class="btn btn-sm btn-bulk-action" onclick="window.memberApp.executeBulkAddClass()">
-        <span class="material-icons">add</span>追加
-      </button>
-      <button class="btn btn-sm btn-bulk-danger" onclick="window.memberApp.confirmBulkDelete()" style="margin-left:8px">
-        <span class="material-icons">delete</span>一括削除
-      </button>
+      <div class="bulk-bar-row">
+        <select id="bulk-status-select">
+          <option value="">ステータス変更</option>
+          <option value="在籍">→ 在籍</option>
+          <option value="休会">→ 休会</option>
+          <option value="退会">→ 退会</option>
+        </select>
+        <button class="btn btn-sm btn-bulk-action" onclick="window.memberApp.executeBulkStatus()">
+          <span class="material-icons">sync</span>適用
+        </button>
+        <button class="btn btn-sm btn-bulk-danger" onclick="window.memberApp.confirmBulkDelete()" style="margin-left:8px">
+          <span class="material-icons">delete</span>一括削除
+        </button>
+      </div>
+      <div class="bulk-bar-row">
+        <select id="bulk-class-select">
+          <option value="">教室追加</option>
+          ${classOptions}
+        </select>
+        <button class="btn btn-sm btn-bulk-action" onclick="window.memberApp.executeBulkAddClass()">
+          <span class="material-icons">add</span>追加
+        </button>
+        <select id="bulk-class-from" style="margin-left:8px">
+          <option value="">変更元</option>
+          ${allClassOptions}
+        </select>
+        <span style="color:rgba(255,255,255,0.6);font-size:12px">→</span>
+        <select id="bulk-class-to">
+          <option value="">変更先</option>
+          ${classOptions}
+        </select>
+        <button class="btn btn-sm btn-bulk-action" onclick="window.memberApp.executeBulkChangeClass()">
+          <span class="material-icons">swap_horiz</span>変更
+        </button>
+        <select id="bulk-class-remove" style="margin-left:8px">
+          <option value="">教室除去</option>
+          ${allClassOptions}
+        </select>
+        <button class="btn btn-sm btn-bulk-action" onclick="window.memberApp.executeBulkRemoveClass()">
+          <span class="material-icons">remove_circle_outline</span>除去
+        </button>
+      </div>
     </div>`;
 }
 
@@ -910,6 +969,113 @@ export async function doBulkAddClass(className) {
   closeModal();
   selectedIds.clear();
   showToast(`${count}名に教室を追加しました`, 'success');
+  await loadMembers();
+}
+
+// --- 一括教室変更 ---
+
+export async function executeBulkChangeClass() {
+  const fromClass = document.getElementById('bulk-class-from')?.value;
+  const toClass = document.getElementById('bulk-class-to')?.value;
+  if (!fromClass) { showToast('変更元の教室を選択してください', 'error'); return; }
+  if (!toClass) { showToast('変更先の教室を選択してください', 'error'); return; }
+  if (fromClass === toClass) { showToast('変更元と変更先が同じです', 'error'); return; }
+
+  const ids = [...selectedIds];
+  const targets = ids.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  const toUpdate = targets.filter(m => (m.classes || []).includes(fromClass));
+
+  if (toUpdate.length === 0) {
+    showToast('選択した会員に変更元の教室が見つかりません', 'info');
+    return;
+  }
+
+  const content = `
+    <p>${toUpdate.length}名の「${escapeHtml(tagToName(fromClass))}」を「${escapeHtml(tagToName(toClass))}」に変更しますか？</p>
+    <div style="max-height:150px;overflow-y:auto;margin:12px 0;padding:8px;background:var(--gray-50);border-radius:8px;font-size:0.9rem">
+      ${toUpdate.map(m => `<div>${escapeHtml(m.name)}</div>`).join('')}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="window.memberApp.doBulkChangeClass('${escapeHtml(fromClass)}', '${escapeHtml(toClass)}')">
+        <span class="material-icons">check</span>変更する
+      </button>
+    </div>`;
+  openModal('一括教室変更', content);
+}
+
+export async function doBulkChangeClass(fromClass, toClass) {
+  const ids = [...selectedIds];
+  const targets = ids.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  let count = 0;
+  for (const m of targets) {
+    const current = m.classes || [];
+    if (!current.includes(fromClass)) continue;
+    const updated = [...new Set(current.map(c => c === fromClass ? toClass : c))];
+    const { error } = await supabase
+      .from('members')
+      .update({ classes: updated })
+      .eq('id', m.id);
+    if (!error) {
+      logActivity(m.id, 'update', 'classes', tagsToNames(current).join(', '), tagsToNames(updated).join(', '));
+      count++;
+    }
+  }
+  closeModal();
+  selectedIds.clear();
+  showToast(`${count}名の教室を変更しました`, 'success');
+  await loadMembers();
+}
+
+// --- 一括教室除去 ---
+
+export async function executeBulkRemoveClass() {
+  const className = document.getElementById('bulk-class-remove')?.value;
+  if (!className) { showToast('除去する教室を選択してください', 'error'); return; }
+
+  const ids = [...selectedIds];
+  const targets = ids.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  const toUpdate = targets.filter(m => (m.classes || []).includes(className));
+
+  if (toUpdate.length === 0) {
+    showToast('選択した会員にこの教室が見つかりません', 'info');
+    return;
+  }
+
+  const content = `
+    <p>${toUpdate.length}名から「${escapeHtml(tagToName(className))}」を除去しますか？</p>
+    <div style="max-height:150px;overflow-y:auto;margin:12px 0;padding:8px;background:var(--gray-50);border-radius:8px;font-size:0.9rem">
+      ${toUpdate.map(m => `<div>${escapeHtml(m.name)}</div>`).join('')}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="window.memberApp.closeModal()">キャンセル</button>
+      <button class="btn btn-danger" onclick="window.memberApp.doBulkRemoveClass('${escapeHtml(className)}')">
+        <span class="material-icons">check</span>除去する
+      </button>
+    </div>`;
+  openModal('一括教室除去', content);
+}
+
+export async function doBulkRemoveClass(className) {
+  const ids = [...selectedIds];
+  const targets = ids.map(id => allMembers.find(m => m.id === id)).filter(Boolean);
+  let count = 0;
+  for (const m of targets) {
+    const current = m.classes || [];
+    if (!current.includes(className)) continue;
+    const updated = current.filter(c => c !== className);
+    const { error } = await supabase
+      .from('members')
+      .update({ classes: updated })
+      .eq('id', m.id);
+    if (!error) {
+      logActivity(m.id, 'update', 'classes', tagsToNames(current).join(', '), tagsToNames(updated).join(', '));
+      count++;
+    }
+  }
+  closeModal();
+  selectedIds.clear();
+  showToast(`${count}名から教室を除去しました`, 'success');
   await loadMembers();
 }
 

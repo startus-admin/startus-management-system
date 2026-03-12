@@ -575,6 +575,19 @@ body {
   color: var(--primary-dark);
   font-weight: 600;
 }
+.filter-pill-sub {
+  border-style: dashed;
+}
+.filter-pill-orphan {
+  border-color: #f59e0b;
+  color: #b45309;
+}
+.filter-pill-orphan:has(input:checked) {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+  font-weight: 600;
+}
 
 /* --- ソートセレクト統一スタイル --- */
 .toolbar .sort-select {
@@ -1133,6 +1146,24 @@ body {
   background: var(--gray-50);
   border-radius: var(--radius-lg);
   border: 1px solid var(--gray-200);
+}
+
+.app-class-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  color: #856404;
+  margin-top: 8px;
+}
+.app-class-warning .material-icons {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 /* --- 編集モード --- */
@@ -1732,6 +1763,28 @@ select.form-control {
   border-radius: var(--radius-full);
   margin-left: 4px;
   vertical-align: middle;
+}
+
+/* インポート教室名修正UI */
+.import-class-corrections { margin-top: 8px; }
+.import-class-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.import-class-original {
+  font-weight: 600;
+  color: var(--danger-color);
+  min-width: 100px;
+  font-size: 0.85rem;
+}
+.import-class-select {
+  padding: 4px 8px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-family: inherit;
 }
 
 .import-table-wrap {
@@ -7132,7 +7185,8 @@ select.form-control {
 }
 .btn-bulk-clear:hover { background: rgba(255,255,255,0.25); }
 .btn-bulk-clear .material-icons { font-size: 18px; }
-.bulk-bar-right { display: flex; gap: 6px; flex-wrap: wrap; }
+.bulk-bar-right { display: flex; flex-direction: column; gap: 6px; }
+.bulk-bar-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .bulk-bar .btn-sm { border: 1px solid rgba(255,255,255,0.15); border-radius: var(--radius-md); }
 .bulk-bar select {
   appearance: none;
