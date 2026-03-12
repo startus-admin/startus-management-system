@@ -3,12 +3,20 @@
 ## プロジェクト概要
 
 STARTUS Sports Academy 管理システム（STARTUS Management System）。Vanilla JavaScript + Supabase のWebアプリ。
-Vercel にデプロイ: https://startus-management-system.vercel.app
+Vercel にデプロイ: https://startus-management-system-iota.vercel.app
+
+### 関連アプリ
+- 出欠アプリ: https://attendance-app-alpha-kohl.vercel.app
+- ショップ: https://startus-shop-six.vercel.app
+
+### アカウント
+- GitHub: startus-admin（Public リポジトリ）
+- Vercel: startus-admin-2173（Hobby プラン）
+- Supabase: STARTUS Sports Org（Free プラン）
 
 ## 重要ルール
 
-- このリポジトリは **Private** です。絶対に Public にしないでください
-- `config.js` にはAPIキーが含まれています。外部に公開しないこと
+- `config.js` にはSupabase anon keyやGoogle API Keyが含まれていますが、フロントエンド用の公開キーです
 - `migration-*.sql` は一度だけ実行するファイルです。再実行禁止
 
 ## 自動コミット＆プッシュ
