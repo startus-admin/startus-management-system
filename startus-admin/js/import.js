@@ -256,16 +256,44 @@ export async function executeImport() {
     school: row.school || '',
   }));
 
+  // まず一括挿入を試行
   const { error } = await supabase.from('members').insert(insertData);
-  if (error) {
-    console.error('インポートエラー:', error);
-    showToast('インポートに失敗しました', 'error');
+  if (!error) {
+    closeModal();
+    showToast(`${insertData.length}件インポートしました`, 'success');
+    await loadMembers();
     return;
   }
 
-  closeModal();
-  showToast(`${insertData.length}件インポートしました`, 'success');
-  await loadMembers();
+  console.error('一括インポートエラー:', error);
+
+  // 一括失敗時は1件ずつ挿入して部分成功を許容
+  let successCount = 0;
+  const errors = [];
+  for (let i = 0; i < insertData.length; i++) {
+    const { error: rowError } = await supabase.from('members').insert([insertData[i]]);
+    if (rowError) {
+      console.error(`行${i + 1}エラー (${insertData[i].name}):`, rowError);
+      errors.push(`${insertData[i].name}: ${rowError.message || rowError.code || 'エラー'}`);
+    } else {
+      successCount++;
+    }
+  }
+
+  if (successCount > 0) {
+    closeModal();
+    const msg = errors.length > 0
+      ? `${successCount}件インポート、${errors.length}件失敗`
+      : `${successCount}件インポートしました`;
+    showToast(msg, errors.length > 0 ? 'warning' : 'success');
+    await loadMembers();
+  } else {
+    showToast(`インポートに失敗しました: ${errors[0] || error.message || '不明なエラー'}`, 'error');
+  }
+
+  if (errors.length > 0) {
+    console.error('インポート失敗の詳細:', errors);
+  }
 }
 
 // --- CSV パーサー ---
