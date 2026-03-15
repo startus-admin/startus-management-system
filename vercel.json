@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/ai-chat.js": {
+      "memory": 256,
+      "maxDuration": 30
+    }
+  }
+}

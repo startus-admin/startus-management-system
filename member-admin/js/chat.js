@@ -4,6 +4,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast } from './app.js';
 import { getStaffById, getStaffByEmail } from './staff.js';
+import { initAiChat, renderAiChat, aiChatBack } from './ai-chat.js';
 
 // --- State ---
 
@@ -47,6 +48,12 @@ export async function initChat(staffInfo) {
   await loadUnreadCounts();
   updateUnreadBadge();
   subscribeRealtime();
+
+  // AIチャット初期化
+  initAiChat(currentStaff);
+
+  // チャンネルリストに戻る関数をAIチャットに公開
+  window._chatNav = { backToChannelList };
 }
 
 export function destroyChat() {
@@ -494,9 +501,21 @@ function renderChannelList() {
       </div>`;
   }).join('');
 
+  // AIアシスタントチャンネル（常に先頭に表示）
+  const aiChannelItem = `
+    <div class="chat-channel-item ai-channel-item"
+         onclick="window.memberApp.openAiChat()">
+      <span class="material-icons chat-channel-icon" style="color:#8b5cf6">smart_toy</span>
+      <div class="chat-channel-info">
+        <div class="chat-channel-name">AI アシスタント</div>
+        <div class="chat-channel-desc">不具合・改善要望を報告</div>
+      </div>
+    </div>`;
+
   body.innerHTML = `
     <div class="chat-channel-list">
-      ${items || '<div class="chat-empty">チャンネルがありません</div>'}
+      ${aiChannelItem}
+      ${items || ''}
     </div>`;
 }
 
@@ -691,6 +710,14 @@ function formatChatTime(isoStr) {
   const m = d.getMonth() + 1;
   const dd = d.getDate();
   return `${m}/${dd} ${hh}:${mm}`;
+}
+
+// --- AI Chat ---
+
+export function openAiChat() {
+  currentView = 'ai-chat';
+  currentChannelId = null;
+  renderAiChat();
 }
 
 // --- Exported aliases for window.memberApp ---

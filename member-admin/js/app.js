@@ -55,8 +55,9 @@ import { updateTabBadges, startBadgePolling } from './notifications.js';
 import {
   initChat, toggleChat, sendTaskMessage, openRefFromChat,
   openDmWithStaff, chatOpenChannel, chatBackToList, chatSendMessage,
-  loadUnreadCounts, updateUnreadBadge
+  loadUnreadCounts, updateUnreadBadge, openAiChat
 } from './chat.js';
+import { aiChatSend, aiChatSuggest, aiChatBack } from './ai-chat.js';
 
 // --- Toast ---
 
@@ -374,6 +375,10 @@ window.memberApp = {
   chatOpenChannel,
   chatBackToList,
   chatSendMessage,
+  openAiChat,
+  aiChatSend,
+  aiChatSuggest,
+  aiChatBack,
   toggleSearchBar,
 };
 
