@@ -195,7 +195,7 @@ const PREVIEW_DEVICE_SIZES = {
 function initShopPreview() {
   const iframe = document.getElementById('shop-preview-iframe');
   if (iframe && !iframe.src.includes('startus-shop')) {
-    iframe.src = 'https://startus-shop.vercel.app/?preview=admin&embed=1';
+    iframe.src = 'https://startus-shop-six.vercel.app/?preview=admin&embed=1';
   }
 }
 
@@ -226,7 +226,7 @@ function setPreviewDevice(device) {
 
 // --- アプリ画面 ---
 
-const ATTENDANCE_APP_URL = 'https://attendance-app-omega-ten.vercel.app';
+const ATTENDANCE_APP_URL = 'https://attendance-app-alpha-kohl.vercel.app';
 
 function openAttendanceApp(viewId) {
   const url = viewId
@@ -616,7 +616,7 @@ window.memberApp = {
   toggleSidebar,
   toggleSidebarCollapse,
   // Shop
-  openShopPreview: () => window.open('https://startus-shop.vercel.app/?preview=admin', '_blank'),
+  openShopPreview: () => window.open('https://startus-shop-six.vercel.app/?preview=admin', '_blank'),
   setPreviewDevice,
   loadShopOrders,
   showOrderDetail,
