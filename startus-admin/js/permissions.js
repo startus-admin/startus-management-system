@@ -91,7 +91,7 @@ let currentPermissions = null;
 
 /**
  * ログイン時にスタッフレコードから権限を初期化する
- * @param {Object} staffRecord - { role, permissions (JSONB or null) }
+ * @param {Object} staffRecord - { is_admin, role, permissions (JSONB or null) }
  */
 export function initPermissions(staffRecord) {
   if (!staffRecord) {
@@ -102,6 +102,12 @@ export function initPermissions(staffRecord) {
   // カスタム権限が設定されていればそちらを使用
   if (staffRecord.permissions) {
     currentPermissions = staffRecord.permissions;
+    return;
+  }
+
+  // is_admin が true の場合は管理者テンプレートを使用（role に関わらず）
+  if (staffRecord.is_admin) {
+    currentPermissions = ROLE_TEMPLATES['管理者'].permissions;
     return;
   }
 

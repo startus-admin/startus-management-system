@@ -18,6 +18,8 @@ export async function isAllowedEmail(email) {
   if (!email) return false;
 
   // staff テーブルで在籍スタッフか確認（is_admin, role, permissions も取得）
+  // permissions カラムが未追加の場合に備えてフォールバック
+  let staffRecord = null;
   const { data, error } = await supabase
     .from('staff')
     .select('id, is_admin, role, permissions')
@@ -26,8 +28,23 @@ export async function isAllowedEmail(email) {
     .limit(1);
 
   if (!error && data && data.length > 0) {
-    currentUserIsAdmin = !!data[0].is_admin;
-    initPermissions(data[0]);
+    staffRecord = data[0];
+  } else {
+    // permissions カラムが存在しない場合のフォールバック
+    const { data: data2, error: error2 } = await supabase
+      .from('staff')
+      .select('id, is_admin, role')
+      .eq('email', email)
+      .eq('status', '在籍')
+      .limit(1);
+    if (!error2 && data2 && data2.length > 0) {
+      staffRecord = { ...data2[0], permissions: null };
+    }
+  }
+
+  if (staffRecord) {
+    currentUserIsAdmin = !!staffRecord.is_admin;
+    initPermissions(staffRecord);
     return true;
   }
 
