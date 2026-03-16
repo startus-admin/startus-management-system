@@ -145,16 +145,35 @@ const STAFF_GRID_HEADER = `
   <div class="staff-grid-header">
     <span>氏名</span>
     <span>役割</span>
+    <span>権限</span>
     <span>教室</span>
     <span>ステータス</span>
     <span>連絡先</span>
     <span></span>
   </div>`;
 
+function getPermissionLabel(s) {
+  if (s.permissions) return 'カスタム';
+  if (s.is_admin) return '管理者';
+  if (ROLE_TEMPLATES[s.role]) return s.role;
+  return 'コーチ';
+}
+
+function getPermissionBadgeClass(label) {
+  switch (label) {
+    case '管理者': return 'badge-perm-admin';
+    case '事務局': return 'badge-perm-jimukyoku';
+    case '指導者': return 'badge-perm-instructor';
+    case 'カスタム': return 'badge-perm-custom';
+    default: return 'badge-perm-default';
+  }
+}
+
 function buildStaffGridRow(s) {
   const roleClass = getRoleClass(s.role);
-  const adminBadge = s.is_admin ? '<span class="badge badge-admin">管理者</span>' : '';
-  const roleBadge = `<span class="badge badge-type badge-type-${roleClass}">${escapeHtml(s.role)}</span>${adminBadge}`;
+  const roleBadge = `<span class="badge badge-type badge-type-${roleClass}">${escapeHtml(s.role)}</span>`;
+  const permLabel = getPermissionLabel(s);
+  const permBadge = `<span class="badge ${getPermissionBadgeClass(permLabel)}">${escapeHtml(permLabel)}</span>`;
   const statusBadge = s.status !== '在籍'
     ? `<span class="badge badge-status badge-status-withdrawn">${escapeHtml(s.status)}</span>`
     : `<span class="badge badge-status badge-status-active">${escapeHtml(s.status)}</span>`;
@@ -168,6 +187,7 @@ function buildStaffGridRow(s) {
         <strong>${escapeHtml(s.name)}</strong>
       </div>
       <div class="grid-cell">${roleBadge}</div>
+      <div class="grid-cell">${permBadge}</div>
       <div class="grid-cell grid-cell-badges">${classBadges}</div>
       <div class="grid-cell">${statusBadge}</div>
       <div class="grid-cell grid-cell-contact">
@@ -401,6 +421,7 @@ function openStaffForm(staff) {
       </div>
     </form>`;
 
+  setModalWide(true);
   openModal(title, content);
 
   setTimeout(() => {

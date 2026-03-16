@@ -6262,7 +6262,7 @@ select.form-control {
 #staff-list .staff-grid-header,
 #staff-list .list-item {
   display: grid;
-  grid-template-columns: minmax(140px, 1.5fr) 80px minmax(120px, 1.5fr) 70px minmax(140px, 1fr) 32px;
+  grid-template-columns: minmax(120px, 1.2fr) 80px 80px minmax(100px, 1.5fr) 70px minmax(120px, 1fr) 32px;
   align-items: center;
   gap: 0 8px;
   padding: 10px 16px;
@@ -9042,4 +9042,31 @@ select.form-control {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* === 権限バッジ（スタッフ一覧） === */
+.badge-perm-admin {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+.badge-perm-jimukyoku {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+.badge-perm-instructor {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+.badge-perm-custom {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+.badge-perm-default {
+  background: var(--gray-100);
+  color: var(--gray-600);
+  border: 1px solid var(--gray-300);
 }
