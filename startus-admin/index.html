@@ -155,11 +155,11 @@
 
         <!-- 管理 -->
         <div class="sidebar-divider"><span class="sidebar-group-label">管理</span></div>
-        <a class="sidebar-item admin-only" data-tab="master" onclick="window.memberApp.switchTab('master')" title="マスタ">
+        <a class="sidebar-item" data-tab="master" onclick="window.memberApp.switchTab('master')" title="マスタ">
           <span class="material-icons">tune</span>
           <span class="sidebar-label">マスタ</span>
         </a>
-        <a class="sidebar-item admin-only" data-tab="settings" onclick="window.memberApp.switchTab('settings')" title="設定">
+        <a class="sidebar-item" data-tab="settings" onclick="window.memberApp.switchTab('settings')" title="設定">
           <span class="material-icons">settings</span>
           <span class="sidebar-label">設定</span>
         </a>
@@ -250,13 +250,13 @@
           <button class="btn btn-primary" onclick="window.memberApp.openAddForm()">
             <span class="material-icons">add</span><span class="btn-text-mobile-hide">追加</span>
           </button>
-          <button class="btn btn-secondary admin-only" onclick="window.memberApp.openImportModal()">
+          <button class="btn btn-secondary" data-perm-edit="members" onclick="window.memberApp.openImportModal()">
             <span class="material-icons">upload_file</span><span class="btn-text-mobile-hide">インポート</span>
           </button>
           <button class="btn btn-secondary" onclick="window.memberApp.exportCSV()">
             <span class="material-icons">download</span><span class="btn-text-mobile-hide">CSV出力</span>
           </button>
-          <button class="btn btn-secondary admin-only" onclick="window.memberApp.openGradeUpdateModal()">
+          <button class="btn btn-secondary" data-perm-edit="members" onclick="window.memberApp.openGradeUpdateModal()">
             <span class="material-icons">school</span><span class="btn-text-mobile-hide">学年更新</span>
           </button>
           <button class="btn btn-secondary" onclick="window.memberApp.openEmailListModal()">
@@ -691,7 +691,7 @@
       <div class="section-header">
         <h2>スタッフ・コーチ</h2>
         <div class="section-actions">
-          <button class="btn btn-primary admin-only" onclick="window.memberApp.openStaffAddForm()">
+          <button class="btn btn-primary" data-perm-edit="staff" onclick="window.memberApp.openStaffAddForm()">
             <span class="material-icons">add</span><span class="btn-text-mobile-hide">追加</span>
           </button>
         </div>

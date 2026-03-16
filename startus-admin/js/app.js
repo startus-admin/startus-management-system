@@ -1,4 +1,5 @@
 import { checkSession, isAllowedEmail, isAdmin, signInWithGoogle, signOut, onAuthStateChange } from './auth.js';
+import { canViewTab, canEdit, canDelete, canView } from './permissions.js';
 import { loadAppSettings, loadStaffCalendars, getAppName, renderAppSettings } from './app-settings.js';
 import {
   loadMembers, showDetail, openAddForm, openEditForm,
@@ -332,8 +333,8 @@ async function showApp(email) {
   const userEmail = document.getElementById('user-email');
   if (userEmail) userEmail.textContent = email;
 
-  // admin権限に応じてUI制御
-  applyAdminVisibility();
+  // 権限に応じてUI制御
+  applyPermissionVisibility();
 
   // イベント初期化
   initSortSelect();
@@ -417,19 +418,44 @@ async function showApp(email) {
 }
 
 /**
- * admin権限に応じて admin-only 要素の表示/非表示を切り替える
+ * 権限に応じてサイドバータブ・操作ボタンの表示/非表示を切り替える
  */
-function applyAdminVisibility() {
-  const adminOnly = document.querySelectorAll('.admin-only');
-  const display = isAdmin();
-  adminOnly.forEach(el => {
-    el.style.display = display ? '' : 'none';
+function applyPermissionVisibility() {
+  // サイドバータブの表示/非表示
+  document.querySelectorAll('.sidebar-item[data-tab]').forEach(el => {
+    const tab = el.dataset.tab;
+    if (tab === 'dashboard') return; // ダッシュボードは常に表示
+    el.style.display = canViewTab(tab) ? '' : 'none';
   });
 
-  // admin バッジ表示
+  // サイドバーグループラベル：配下のタブが全て非表示ならグループも非表示
+  document.querySelectorAll('.sidebar-divider').forEach(divider => {
+    let next = divider.nextElementSibling;
+    let hasVisible = false;
+    while (next && !next.classList.contains('sidebar-divider')) {
+      if (next.classList.contains('sidebar-item') && next.style.display !== 'none') {
+        hasVisible = true;
+        break;
+      }
+      next = next.nextElementSibling;
+    }
+    divider.style.display = hasVisible ? '' : 'none';
+  });
+
+  // 編集権限が必要なボタン
+  document.querySelectorAll('[data-perm-edit]').forEach(el => {
+    el.style.display = canEdit(el.dataset.permEdit) ? '' : 'none';
+  });
+
+  // 削除権限が必要なボタン
+  document.querySelectorAll('[data-perm-delete]').forEach(el => {
+    el.style.display = canDelete(el.dataset.permDelete) ? '' : 'none';
+  });
+
+  // 管理者バッジ表示
   const badge = document.getElementById('admin-badge');
   if (badge) {
-    badge.style.display = display ? '' : 'none';
+    badge.style.display = canView('admin') ? '' : 'none';
   }
 }
 

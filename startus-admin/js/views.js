@@ -1,3 +1,5 @@
+import { canViewTab } from './permissions.js';
+
 // --- サイドバーナビゲーション ---
 
 let currentTab = 'dashboard';
@@ -25,6 +27,9 @@ export function initTabs(callback) {
 }
 
 export function switchTab(tabName) {
+  // 権限チェック: アクセス権のないタブへの遷移を防止
+  if (!canViewTab(tabName)) return;
+
   if (currentTab === tabName) {
     // モバイル: 同じタブクリック → サイドバーを閉じるだけ
     if (isMobile()) closeMobileSidebar();

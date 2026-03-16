@@ -2,6 +2,7 @@ import { supabase } from './supabase.js';
 import { escapeHtml, formatDate } from './utils.js';
 import { showToast, openModal, closeModal, setModalWide } from './app.js';
 import { isAdmin } from './auth.js';
+import { canEdit, canDelete, canView, ROLE_TEMPLATES, PERMISSION_GROUPS, getRoleTemplate, getPermissionGroupKeys } from './permissions.js';
 import { getActiveClassrooms } from './classroom.js';
 import { tagToName, getSubClassesFromArray } from './class-utils.js';
 
@@ -274,13 +275,13 @@ export function showStaffDetail(id) {
       <div class="detail-row"><span class="detail-label">登録日</span><span class="detail-value">${formatDate(s.joined_date) || '-'}</span></div>
       <div class="detail-row"><span class="detail-label">メモ</span><span class="detail-value">${escapeHtml(s.note) || '-'}</span></div>
     </div>
-    ${isAdmin() ? `<div class="modal-detail-actions">
-      <button class="btn btn-primary" onclick="window.memberApp.openStaffEditForm('${s.id}')">
+    ${canEdit('staff') || canDelete('staff') ? `<div class="modal-detail-actions">
+      ${canEdit('staff') ? `<button class="btn btn-primary" onclick="window.memberApp.openStaffEditForm('${s.id}')">
         <span class="material-icons">edit</span>編集
-      </button>
-      <button class="btn btn-danger" onclick="window.memberApp.confirmDeleteStaff('${s.id}', '${escapeHtml(s.name)}')">
+      </button>` : ''}
+      ${canDelete('staff') ? `<button class="btn btn-danger" onclick="window.memberApp.confirmDeleteStaff('${s.id}', '${escapeHtml(s.name)}')">
         <span class="material-icons">delete</span>削除
-      </button>
+      </button>` : ''}
     </div>` : ''}`;
 
   setModalWide(true);
@@ -356,14 +357,7 @@ function openStaffForm(staff) {
           </select>
         </div>
       </div>
-      ${isAdmin() ? `
-      <div class="form-group">
-        <label class="checkbox-label">
-          <input type="checkbox" name="is_admin" ${s.is_admin ? 'checked' : ''}>
-          管理者権限を付与する
-        </label>
-        <p class="form-hint">管理者はスタッフ管理・マスタ設定・会員削除などの操作ができます</p>
-      </div>` : ''}
+      ${canView('admin') ? buildPermissionUI(s) : ''}
       <div class="form-group">
         <label>電話番号</label>
         <input type="tel" name="phone" value="${escapeHtml(s.phone || '')}">
@@ -424,6 +418,9 @@ function openStaffForm(staff) {
         if (subOpts) subOpts.style.display = cb.checked ? '' : 'none';
       });
     });
+
+    // 権限テンプレート選択イベント
+    initPermissionFormEvents(s);
   }, 100);
 }
 
@@ -453,9 +450,11 @@ async function saveStaff(form, id) {
     show_in_attendance: !!fd.get('show_in_attendance'),
   };
 
-  // admin権限がある場合のみ is_admin を更新
-  if (isAdmin()) {
-    data.is_admin = !!fd.get('is_admin');
+  // 管理者権限がある場合のみ権限設定を更新
+  if (canView('admin')) {
+    const permData = collectPermissionFormData(form);
+    data.is_admin = permData.isAdmin;
+    data.permissions = permData.permissions;
   }
 
   let error;
@@ -504,6 +503,195 @@ export async function deleteStaff(id) {
   closeModal();
   showToast('削除しました', 'success');
   await loadStaff();
+}
+
+// --- 権限設定UI ---
+
+/**
+ * スタッフ編集フォーム用の権限設定UIを生成
+ */
+function buildPermissionUI(staff) {
+  const s = staff || {};
+  const currentRole = s.role || 'スタッフ';
+  const hasCustom = !!s.permissions;
+
+  // テンプレートに合致する役割を判定
+  const matchedTemplate = hasCustom ? '_custom' : (ROLE_TEMPLATES[currentRole] ? currentRole : '_custom');
+
+  // テンプレート選択肢
+  const templateOptions = Object.entries(ROLE_TEMPLATES).map(([key, tmpl]) => {
+    const selected = key === matchedTemplate ? 'selected' : '';
+    return `<option value="${escapeHtml(key)}" ${selected}>${escapeHtml(tmpl.label)}</option>`;
+  }).join('');
+
+  // 有効な権限を計算
+  const effectivePerms = s.permissions || (ROLE_TEMPLATES[currentRole]?.permissions) || ROLE_TEMPLATES['コーチ'].permissions;
+
+  // 権限チェックボックスグリッド
+  const groupKeys = getPermissionGroupKeys();
+  const permRows = groupKeys.map(group => {
+    const def = PERMISSION_GROUPS[group];
+    const gp = effectivePerms[group] || { view: false, edit: false, delete: false };
+    return `
+      <tr>
+        <td class="perm-group-label">${escapeHtml(def.label)}</td>
+        <td class="perm-cb-cell"><input type="checkbox" name="perm_view_${group}" ${gp.view ? 'checked' : ''} ${hasCustom ? '' : 'disabled'}></td>
+        <td class="perm-cb-cell"><input type="checkbox" name="perm_edit_${group}" ${gp.edit ? 'checked' : ''} ${hasCustom ? '' : 'disabled'}></td>
+        <td class="perm-cb-cell"><input type="checkbox" name="perm_delete_${group}" ${gp.delete ? 'checked' : ''} ${hasCustom ? '' : 'disabled'}></td>
+      </tr>`;
+  }).join('');
+
+  return `
+      <div class="form-group perm-section">
+        <label>アクセス権限</label>
+        <div class="perm-template-row">
+          <select name="perm_template" id="perm-template-select">
+            ${templateOptions}
+            <option value="_custom" ${matchedTemplate === '_custom' ? 'selected' : ''}>カスタム</option>
+          </select>
+          <button type="button" class="btn btn-sm btn-secondary" id="perm-customize-btn" ${hasCustom ? 'style="display:none"' : ''}>
+            <span class="material-icons" style="font-size:16px">tune</span>カスタマイズ
+          </button>
+        </div>
+        <table class="perm-grid" id="perm-grid">
+          <thead>
+            <tr><th></th><th>閲覧</th><th>編集</th><th>削除</th></tr>
+          </thead>
+          <tbody>
+            ${permRows}
+          </tbody>
+        </table>
+      </div>`;
+}
+
+/**
+ * 権限フォームのイベントハンドラを初期化
+ */
+function initPermissionFormEvents(staff) {
+  const templateSelect = document.getElementById('perm-template-select');
+  const customizeBtn = document.getElementById('perm-customize-btn');
+  const permGrid = document.getElementById('perm-grid');
+  if (!templateSelect || !permGrid) return;
+
+  // テンプレート選択変更時
+  templateSelect.addEventListener('change', () => {
+    const val = templateSelect.value;
+    if (val === '_custom') {
+      enablePermCheckboxes(true);
+      if (customizeBtn) customizeBtn.style.display = 'none';
+    } else {
+      const tmpl = getRoleTemplate(val);
+      if (tmpl) applyTemplateToGrid(tmpl);
+      enablePermCheckboxes(false);
+      if (customizeBtn) customizeBtn.style.display = '';
+    }
+  });
+
+  // カスタマイズボタン
+  if (customizeBtn) {
+    customizeBtn.addEventListener('click', () => {
+      templateSelect.value = '_custom';
+      enablePermCheckboxes(true);
+      customizeBtn.style.display = 'none';
+    });
+  }
+
+  // edit がチェックされたら view も自動チェック
+  // delete がチェックされたら edit + view も自動チェック
+  permGrid.addEventListener('change', (e) => {
+    if (!e.target.matches('input[type="checkbox"]')) return;
+    const name = e.target.name;
+    if (!name) return;
+    const parts = name.match(/^perm_(view|edit|delete)_(.+)$/);
+    if (!parts) return;
+    const [, op, group] = parts;
+
+    if (op === 'edit' && e.target.checked) {
+      const viewCb = permGrid.querySelector(`[name="perm_view_${group}"]`);
+      if (viewCb) viewCb.checked = true;
+    }
+    if (op === 'delete' && e.target.checked) {
+      const viewCb = permGrid.querySelector(`[name="perm_view_${group}"]`);
+      const editCb = permGrid.querySelector(`[name="perm_edit_${group}"]`);
+      if (viewCb) viewCb.checked = true;
+      if (editCb) editCb.checked = true;
+    }
+    // view を外したら edit, delete も外す
+    if (op === 'view' && !e.target.checked) {
+      const editCb = permGrid.querySelector(`[name="perm_edit_${group}"]`);
+      const deleteCb = permGrid.querySelector(`[name="perm_delete_${group}"]`);
+      if (editCb) editCb.checked = false;
+      if (deleteCb) deleteCb.checked = false;
+    }
+    // edit を外したら delete も外す
+    if (op === 'edit' && !e.target.checked) {
+      const deleteCb = permGrid.querySelector(`[name="perm_delete_${group}"]`);
+      if (deleteCb) deleteCb.checked = false;
+    }
+  });
+}
+
+/**
+ * テンプレートの値をグリッドに反映
+ */
+function applyTemplateToGrid(tmpl) {
+  const permGrid = document.getElementById('perm-grid');
+  if (!permGrid) return;
+  for (const group of getPermissionGroupKeys()) {
+    const gp = tmpl[group] || { view: false, edit: false, delete: false };
+    const viewCb = permGrid.querySelector(`[name="perm_view_${group}"]`);
+    const editCb = permGrid.querySelector(`[name="perm_edit_${group}"]`);
+    const deleteCb = permGrid.querySelector(`[name="perm_delete_${group}"]`);
+    if (viewCb) viewCb.checked = gp.view;
+    if (editCb) editCb.checked = gp.edit;
+    if (deleteCb) deleteCb.checked = gp.delete;
+  }
+}
+
+/**
+ * チェックボックスの有効/無効を切り替え
+ */
+function enablePermCheckboxes(enabled) {
+  const permGrid = document.getElementById('perm-grid');
+  if (!permGrid) return;
+  permGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.disabled = !enabled;
+  });
+}
+
+/**
+ * フォームから権限データを収集
+ */
+function collectPermissionFormData(form) {
+  const templateSelect = form.querySelector('#perm-template-select');
+  const templateVal = templateSelect ? templateSelect.value : '';
+
+  // テンプレート選択時（カスタムでない場合）→ permissions = null
+  if (templateVal && templateVal !== '_custom') {
+    // is_admin は管理者テンプレートの場合 true
+    return {
+      isAdmin: templateVal === '管理者',
+      permissions: null,
+    };
+  }
+
+  // カスタム → JSONB を構築
+  const permissions = {};
+  for (const group of getPermissionGroupKeys()) {
+    const viewCb = form.querySelector(`[name="perm_view_${group}"]`);
+    const editCb = form.querySelector(`[name="perm_edit_${group}"]`);
+    const deleteCb = form.querySelector(`[name="perm_delete_${group}"]`);
+    permissions[group] = {
+      view: viewCb ? viewCb.checked : false,
+      edit: editCb ? editCb.checked : false,
+      delete: deleteCb ? deleteCb.checked : false,
+    };
+  }
+
+  // admin グループに権限があれば is_admin = true
+  const isAdmin = !!(permissions.admin && permissions.admin.view);
+
+  return { isAdmin, permissions };
 }
 
 // --- 初期化 ---

@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { ALLOWED_EMAILS } from './config.js';
+import { initPermissions, canView } from './permissions.js';
 
 // 現在のログインユーザーが管理者かどうか
 let currentUserIsAdmin = false;
@@ -16,22 +17,24 @@ export async function checkSession() {
 export async function isAllowedEmail(email) {
   if (!email) return false;
 
-  // staff テーブルで在籍スタッフか確認（is_admin も取得）
+  // staff テーブルで在籍スタッフか確認（is_admin, role, permissions も取得）
   const { data, error } = await supabase
     .from('staff')
-    .select('id, is_admin')
+    .select('id, is_admin, role, permissions')
     .eq('email', email)
     .eq('status', '在籍')
     .limit(1);
 
   if (!error && data && data.length > 0) {
     currentUserIsAdmin = !!data[0].is_admin;
+    initPermissions(data[0]);
     return true;
   }
 
   // staff テーブルから取得できなかった場合は ALLOWED_EMAILS にフォールバック
   if (ALLOWED_EMAILS && ALLOWED_EMAILS.length > 0) {
     currentUserIsAdmin = false;
+    initPermissions(null);
     return ALLOWED_EMAILS.includes(email);
   }
 

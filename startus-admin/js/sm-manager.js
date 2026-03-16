@@ -4,6 +4,7 @@
 
 import { showToast, openModal, closeModal } from './app.js';
 import { isAdmin } from './auth.js';
+import { canEdit } from './permissions.js';
 import { getClassrooms, getActiveClassrooms, loadClassrooms } from './classroom.js';
 import {
   smLoadSchedules, smGetSchedules, smGetProgressByClass,
@@ -26,8 +27,8 @@ import {
 } from './sm-utils.js';
 
 // --- ロールヘルパー ---
-export function smIsAdmin() { return isAdmin(); }
-export function smIsCoach() { return !isAdmin(); }
+export function smIsAdmin() { return canEdit('schedule'); }
+export function smIsCoach() { return !canEdit('schedule'); }
 
 // --- 状態 ---
 let smCurrentTab  = 'list';
