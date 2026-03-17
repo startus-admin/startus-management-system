@@ -342,10 +342,12 @@ async function fetchApplicationCounts(startDate, endDate) {
 
 // --- 日付正規化ヘルパー ---
 
-/** YYYY/MM/DD → YYYY-MM-DD に統一 */
+/** 日付文字列から YYYY-MM-DD を抽出（"2026/03/26(木) 18:00" 等にも対応） */
 function normalizeDate(dateStr) {
   if (!dateStr) return '';
-  return dateStr.replace(/\//g, '-');
+  const m = dateStr.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (!m) return dateStr.replace(/\//g, '-');
+  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
 }
 
 // --- Enrichment ---
@@ -471,18 +473,26 @@ function getReinstatementsForEvent(enrichedEvent, appData) {
 
 /** 振替: transfer_date（振替希望日）+ transfer_class（calendar_tag）でマッチ */
 function getTransfersForEvent(enrichedEvent, appData) {
-  if (!appData || !appData.transfers || !enrichedEvent.classroom) return [];
+  if (!appData || !appData.transfers) return [];
   const eventDate = toISODate(new Date(enrichedEvent.start));
   const calendarTag = enrichedEvent.class || '';
-  const classroomName = enrichedEvent.classroomName;
+  const classroomName = enrichedEvent.classroomName || '';
+  const idx = getClassroomIndex();
 
   return appData.transfers.filter(t => {
     const fd = t.form_data || {};
     const dateMatch = normalizeDate(fd.transfer_date) === eventDate;
-    // calendar_tagで直接マッチ（新データ）、フォールバックで名前マッチ（旧データ）
-    const classMatch = fd.transfer_class === calendarTag ||
-      matchesClassroom(classroomName, toClassList(fd, 'transfer_class'));
-    return dateMatch && classMatch;
+    if (!dateMatch) return false;
+
+    const tc = fd.transfer_class || '';
+    // 1) calendar_tagで直接マッチ
+    if (tc === calendarTag) return true;
+    // 2) transfer_class がcalendar_tagではなく教室名の場合、イベントの教室名と比較
+    if (classroomName && matchesClassroom(classroomName, [tc])) return true;
+    // 3) transfer_class がcalendar_tagで、そのtagから教室名を引いてイベントの教室名と比較
+    const resolved = idx[tc];
+    if (resolved && classroomName && matchesClassroom(classroomName, [resolved.name])) return true;
+    return false;
   });
 }
 
