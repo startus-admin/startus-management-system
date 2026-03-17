@@ -934,8 +934,8 @@ export function showScheduleEventDetail(eventId, eventDate) {
   const reinstatements = cachedAppData ? getReinstatementsForEvent(e, cachedAppData) : [];
   const transfers = cachedAppData ? getTransfersForEvent(e, cachedAppData) : [];
 
-  const eventDate = new Date(e.start);
-  const dateLabel = `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日（${DAY_NAMES[eventDate.getDay()]}）`;
+  const evDate = new Date(e.start);
+  const dateLabel = `${evDate.getFullYear()}年${evDate.getMonth() + 1}月${evDate.getDate()}日（${DAY_NAMES[evDate.getDay()]}）`;
 
   const trialRows = trials.length > 0
     ? trials.map(t => renderAppRow(t, 'trial')).join('')
