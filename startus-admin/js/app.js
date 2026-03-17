@@ -64,7 +64,7 @@ import {
 import { renderCalendar, navigateCalendarDay, goToCalendarToday, refreshCalendar, openGoogleCalendar, showCalendarEvent, changeCalendarMode } from './calendar.js';
 import {
   renderSchedule, navigateSchedule, goToScheduleToday,
-  refreshSchedule, changeScheduleView, showScheduleEventDetail,
+  refreshSchedule, invalidateAppCache, changeScheduleView, showScheduleEventDetail,
   navigateScheduleToDate, toggleAppSummary, prefetchSchedule
 } from './schedule.js';
 import {
@@ -602,6 +602,7 @@ window.memberApp = {
   navigateSchedule,
   goToScheduleToday,
   refreshSchedule,
+  invalidateAppCache,
   changeScheduleView,
   showScheduleEventDetail,
   navigateScheduleToDate,

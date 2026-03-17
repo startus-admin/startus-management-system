@@ -716,6 +716,12 @@ export async function updateTrialStatus(id, newStatus) {
   }
 
   showToast(`ステータスを「${statusLabel}」に変更しました`, 'success');
+
+  // スケジュールの申請キャッシュをクリア
+  if (window.memberApp?.invalidateAppCache) {
+    window.memberApp.invalidateAppCache();
+  }
+
   closeModal();
   await renderTrialList();
   updateTabBadges();

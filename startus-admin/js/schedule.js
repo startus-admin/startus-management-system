@@ -1075,6 +1075,11 @@ export function refreshSchedule() {
   renderSchedule();
 }
 
+/** 申請キャッシュのみクリア（他タブからの更新通知用） */
+export function invalidateAppCache() {
+  cachedAppData = null;
+}
+
 export function changeScheduleView(view) {
   if (currentView === view) return;
   currentView = view;

@@ -752,6 +752,11 @@ export async function updateTransferStatus(id, newStatus) {
 
   showToast(`ステータスを「${TRANSFER_STATUS_LABELS[newStatus]}」に更新しました`, 'success');
 
+  // スケジュールの申請キャッシュをクリア（振替がスケジュールに反映されるように）
+  if (window.memberApp?.invalidateAppCache) {
+    window.memberApp.invalidateAppCache();
+  }
+
   closeModal();
   applyTransferFilters();
   renderTransferListOnly();
