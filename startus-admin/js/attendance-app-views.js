@@ -93,6 +93,7 @@ function renderAppViewsScreen() {
         </div>
         <div class="av-row-main">
           <div class="av-row-name">
+            <span class="av-row-order-badge">${v.display_order}</span>
             <strong>${escapeHtml(v.name)}</strong>
             ${statusBadge}
           </div>
@@ -103,17 +104,19 @@ function renderAppViewsScreen() {
           </div>
         </div>
         <div class="av-row-actions" onclick="event.stopPropagation()">
-          <span class="av-row-order">${v.display_order}</span>
-          <button class="btn-icon" title="アプリを開く"
+          <button class="av-open-app-btn" title="このビューで出欠アプリを開く"
                   onclick="window.memberApp.openAttendanceAppWithView('${v.id}')">
-            <span class="material-icons" style="font-size:18px;color:var(--primary-color)">open_in_new</span>
+            <span class="material-icons">open_in_new</span>アプリで開く
           </button>
-          <button class="btn-icon" title="削除"
+          <button class="btn-icon av-edit-btn" title="編集"
+                  onclick="window.memberApp.openViewEditForm('${v.id}')">
+            <span class="material-icons">edit</span>
+          </button>
+          <button class="btn-icon av-delete-btn" title="削除"
                   onclick="window.memberApp.confirmDeleteView('${v.id}', '${escapeHtml(v.name)}')">
-            <span class="material-icons" style="font-size:18px;color:var(--danger-color)">delete</span>
+            <span class="material-icons">delete</span>
           </button>
         </div>
-        <span class="material-icons av-row-arrow" style="color:var(--gray-300);font-size:20px">chevron_right</span>
       </div>`;
   }
 

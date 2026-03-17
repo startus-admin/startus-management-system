@@ -6506,10 +6506,10 @@ select.form-control {
 #classroom-table-wrap .cr-grid-header,
 #classroom-table-wrap .list-item {
   display: grid;
-  grid-template-columns: 32px minmax(100px, 1.5fr) auto auto 72px minmax(60px, 0.8fr) minmax(70px, 1fr) minmax(60px, 0.8fr) 40px 64px 50px 28px;
+  grid-template-columns: 36px minmax(140px, 2fr) auto auto 90px minmax(100px, 1.5fr) minmax(80px, 1fr) 76px 52px 28px;
   align-items: center;
-  gap: 0 8px;
-  padding: 10px 16px;
+  gap: 0 12px;
+  padding: 14px 16px;
 }
 
 #classroom-table-wrap .cr-grid-header {
@@ -6519,10 +6519,11 @@ select.form-control {
   position: sticky;
   top: 0;
   z-index: 5;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--gray-500);
   letter-spacing: 0.3px;
+  padding: 12px 16px;
 }
 
 #classroom-table-wrap .cr-grid-header span {
@@ -6537,6 +6538,11 @@ select.form-control {
   box-shadow: none;
 }
 
+/* ゼブラストライプ（交互背景色） */
+#classroom-table-wrap .list-item:nth-child(even) {
+  background: var(--gray-50);
+}
+
 #classroom-table-wrap .list-item:last-child {
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   border-bottom: 1px solid var(--gray-200);
@@ -6549,18 +6555,19 @@ select.form-control {
 }
 
 /* --- セル固有スタイル --- */
-.cr-td-order   { color: var(--gray-400); font-size: 0.78rem; font-variant-numeric: tabular-nums; text-align: center; }
-.cr-td-capacity { text-align: right; color: var(--gray-500); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.cr-td-order   { color: var(--gray-400); font-size: 0.82rem; font-variant-numeric: tabular-nums; text-align: center; }
 .cr-td-fee     { text-align: right; }
 .cr-td-status  { text-align: center; }
-.cr-td-target  { color: var(--gray-500); font-size: 0.82rem; }
 .cr-td-venue, .cr-td-coach {
-  color: var(--gray-500);
-  font-size: 0.82rem;
+  color: var(--gray-600);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cr-td-time {
   color: var(--gray-600);
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -6569,13 +6576,18 @@ select.form-control {
   opacity: 0.45;
 }
 
+/* --- 教室名 --- */
+#classroom-table-wrap .grid-cell-name strong {
+  font-size: 0.92rem;
+}
+
 /* --- カテゴリバッジ --- */
 .cr-cat-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -6585,20 +6597,20 @@ select.form-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   color: white;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  margin-right: 2px;
+  margin-right: 3px;
 }
 
 /* --- 月謝 --- */
 .cr-fee-val {
   font-weight: 600;
   color: var(--gray-700);
-  font-size: 0.84rem;
+  font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -6606,9 +6618,9 @@ select.form-control {
 .cr-status-on {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
   background: var(--success-light);
@@ -6618,9 +6630,9 @@ select.form-control {
 .cr-status-off {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
   background: var(--gray-100);
@@ -8860,9 +8872,10 @@ select.form-control {
 
 .av-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
+  padding: 14px 16px !important;
 }
 
 .av-row-inactive {
@@ -8882,23 +8895,71 @@ select.form-control {
   gap: 8px;
 }
 
+.av-row-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gray-100);
+  color: var(--gray-500);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 .av-row-classrooms {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  padding-left: 30px;
 }
 
 .av-row-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.av-row-order {
-  color: var(--gray-400);
+/* アプリで開くボタン */
+.av-open-app-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--primary-color);
+  border-radius: 6px;
+  background: white;
+  color: var(--primary-color);
   font-size: 12px;
-  min-width: 20px;
-  text-align: center;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.av-open-app-btn .material-icons {
+  font-size: 15px;
+}
+.av-open-app-btn:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* 編集・削除アイコン */
+.av-edit-btn .material-icons {
+  font-size: 18px;
+  color: var(--gray-400);
+}
+.av-edit-btn:hover .material-icons {
+  color: var(--primary-color);
+}
+.av-delete-btn .material-icons {
+  font-size: 18px;
+  color: var(--gray-300);
+}
+.av-delete-btn:hover .material-icons {
+  color: var(--danger-color);
 }
 
 .av-classroom-grid {
@@ -8937,7 +8998,7 @@ select.form-control {
 
 /* ビュー並び替え */
 .av-sort-mode .av-row {
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto 1fr auto;
 }
 .av-drag-handle {
   display: none;
@@ -8959,7 +9020,7 @@ select.form-control {
 .av-sort-mode .list-item:active {
   cursor: grabbing;
 }
-.av-sort-mode .av-row-arrow {
+.av-sort-mode .av-row-actions {
   display: none;
 }
 .av-drag-placeholder {
@@ -8978,6 +9039,23 @@ select.form-control {
   background: var(--primary-color);
   color: white;
   border-color: var(--primary-color);
+}
+
+/* モバイル対応 */
+@media (max-width: 600px) {
+  .av-open-app-btn span.btn-text-mobile-hide {
+    display: none;
+  }
+  .av-open-app-btn {
+    padding: 5px 8px;
+    font-size: 0;
+  }
+  .av-open-app-btn .material-icons {
+    font-size: 18px;
+  }
+  .av-row-classrooms {
+    padding-left: 0;
+  }
 }
 
 /* === 権限設定UI === */
