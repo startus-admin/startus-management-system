@@ -6829,6 +6829,15 @@ select.form-control {
   gap: 0 16px;
 }
 
+/* --- ドラッグアイコン（通常時は非表示） --- */
+.cr-drag-icon {
+  display: none;
+  font-size: 16px;
+  color: var(--gray-400);
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
 /* --- 並替モード --- */
 .cr-sort-mode .cr-row {
   cursor: grab;
@@ -6837,6 +6846,13 @@ select.form-control {
 }
 .cr-sort-mode .cr-row:active {
   cursor: grabbing;
+}
+.cr-sort-mode .cr-drag-icon {
+  display: inline;
+  color: var(--primary-color);
+}
+.cr-sort-mode .cr-td-order {
+  white-space: nowrap;
 }
 .cr-sort-mode .grid-cell-arrow {
   display: none;

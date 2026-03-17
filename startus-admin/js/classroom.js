@@ -294,7 +294,7 @@ function renderClassroomView() {
 
     return `
       <div class="list-item cr-row${inactiveClass}" data-id="${c.id}">
-        <div class="grid-cell cr-td-order">${c.display_order}</div>
+        <div class="grid-cell cr-td-order"><span class="material-icons cr-drag-icon">drag_indicator</span>${c.display_order}</div>
         <div class="grid-cell grid-cell-name" title="${escapeHtml(c.name)}"><strong>${escapeHtml(c.name)}</strong></div>
         <div class="grid-cell">${categoryHtml(c.category)}</div>
         <div class="grid-cell grid-cell-badges">${dayBadgesHtml(c.day_of_week)}</div>
