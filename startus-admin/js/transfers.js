@@ -45,7 +45,21 @@ const TRANSFER_FIELD_INPUT_TYPES = {
   absent_date:    { type: 'date' },
   transfer_date:  { type: 'date' },
   note:           { type: 'textarea' },
+  source_class:   { type: 'classroom_select' },
+  absent_class:   { type: 'classroom_select' },
+  transfer_class: { type: 'classroom_select' },
 };
+
+// 教室フィールドのキー一覧
+const CLASS_FIELD_KEYS = new Set(['source_class', 'absent_class', 'transfer_class']);
+
+/** calendar_tag → 教室表示名に変換（見つからなければそのまま返す） */
+function resolveClassTag(tag) {
+  if (!tag) return '';
+  const classrooms = getActiveClassrooms();
+  const found = classrooms.find(c => c.calendar_tag === tag);
+  return found ? found.name : tag;
+}
 
 // ビジネスルール: 振替元として不可の教室（月会費6,600円以下）
 const INELIGIBLE_SOURCE_CLASSES = [
@@ -175,14 +189,19 @@ function getTransferWarnings(fd) {
     }
   }
 
-  // 振替元が対象外教室
-  if (fd.absent_class && INELIGIBLE_SOURCE_CLASSES.some(c => fd.absent_class.includes(c))) {
-    warnings.push({ type: 'danger', label: '振替不可教室', detail: `${fd.absent_class}は振替対象外です` });
+  // 振替元が対象外教室（calendar_tagまたは名前で判定）
+  if (fd.absent_class) {
+    const absentName = resolveClassTag(fd.absent_class);
+    if (INELIGIBLE_SOURCE_CLASSES.some(c => absentName.includes(c))) {
+      warnings.push({ type: 'danger', label: '振替不可教室', detail: `${absentName}は振替対象外です` });
+    }
   }
 
   // 振替先が不可教室
-  if (fd.transfer_class && INELIGIBLE_DEST_CLASSES.some(c => fd.transfer_class.includes(c))) {
-    warnings.push({ type: 'danger', label: '振替先不可', detail: `${fd.transfer_class}は振替先に指定できません` });
+  if (fd.transfer_class) {
+    const transferName = resolveClassTag(fd.transfer_class);
+    if (INELIGIBLE_DEST_CLASSES.some(c => transferName.includes(c))) {
+      warnings.push({ type: 'danger', label: '振替先不可', detail: `${transferName}は振替先に指定できません` });
   }
 
   return warnings;
@@ -255,8 +274,8 @@ function applyTransferFilters() {
       return (fd.member_name || '').toLowerCase().includes(q) ||
         (fd.member_furigana || '').toLowerCase().includes(q) ||
         (fd.email || '').toLowerCase().includes(q) ||
-        (fd.absent_class || '').toLowerCase().includes(q) ||
-        (fd.transfer_class || '').toLowerCase().includes(q);
+        resolveClassTag(fd.absent_class).toLowerCase().includes(q) ||
+        resolveClassTag(fd.transfer_class).toLowerCase().includes(q);
     });
   }
 
@@ -356,8 +375,8 @@ function buildTransferGridRow(t) {
         <span class="material-icons" style="font-size:18px;color:var(--gray-400);flex-shrink:0">swap_horiz</span>
         <strong>${escapeHtml(fd.member_name || '（名前なし）')}</strong>
       </div>
-      <div class="grid-cell">${escapeHtml(fd.absent_class || '')}</div>
-      <div class="grid-cell">${escapeHtml(fd.transfer_class || '')}</div>
+      <div class="grid-cell">${escapeHtml(resolveClassTag(fd.absent_class))}</div>
+      <div class="grid-cell">${escapeHtml(resolveClassTag(fd.transfer_class))}</div>
       <div class="grid-cell grid-cell-badges">
         <span class="badge ${badgeClass}">${escapeHtml(statusLabel)}</span>
         ${warningBadges}
@@ -528,11 +547,13 @@ export async function showTransferDetail(id) {
     let val = fd[f.key];
     if (Array.isArray(val)) val = val.join('・');
     if (!val) return '';
+    // 教室フィールドはcalendar_tagを表示名に変換
+    const displayVal = CLASS_FIELD_KEYS.has(f.key) ? resolveClassTag(val) : val;
     const fullClass = fullWidthKeys.has(f.key) ? ' detail-row-full' : '';
     return `
       <div class="detail-row${fullClass}">
         <span class="detail-label">${escapeHtml(f.label)}</span>
-        <span class="detail-value">${escapeHtml(val)}</span>
+        <span class="detail-value">${escapeHtml(displayVal)}</span>
       </div>`;
   }).filter(Boolean).join('');
 
@@ -862,7 +883,7 @@ export async function assignTransfer(id, staffId) {
   // タスクメッセージ
   if (newStaffId && newStaffId !== oldStaffId) {
     const fd = transfer.form_data || {};
-    const msg = `振替申請の担当になりました：${fd.member_name || '（名前なし）'}（${fd.absent_class || ''} → ${fd.transfer_class || ''}）`;
+    const msg = `振替申請の担当になりました：${fd.member_name || '（名前なし）'}（${resolveClassTag(fd.absent_class)} → ${resolveClassTag(fd.transfer_class)}）`;
     await sendTaskMessage(newStaffId, msg);
   }
 
@@ -956,7 +977,12 @@ function buildTransferFormField(field, value, classrooms) {
 
   let inputHtml = '';
 
-  if (inputType.type === 'date') {
+  if (inputType.type === 'classroom_select') {
+    const options = classrooms.map(c =>
+      `<option value="${escapeHtml(c.calendar_tag)}" ${displayVal === c.calendar_tag ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+    ).join('');
+    inputHtml = `<select class="form-input" data-field="${field.key}"><option value="">選択してください</option>${options}</select>`;
+  } else if (inputType.type === 'date') {
     inputHtml = `<input type="date" class="form-input" data-field="${field.key}" value="${escapeHtml(displayVal)}">`;
   } else if (inputType.type === 'textarea') {
     inputHtml = `<textarea class="form-input" data-field="${field.key}" rows="2">${escapeHtml(displayVal)}</textarea>`;
@@ -1026,7 +1052,7 @@ export function openTransferAddForm() {
   const classrooms = getActiveClassrooms();
 
   const classOptions = classrooms.map(c =>
-    `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`
+    `<option value="${escapeHtml(c.calendar_tag)}">${escapeHtml(c.name)}</option>`
   ).join('');
 
   const content = `
@@ -1199,7 +1225,7 @@ function updateTransferClassFilter() {
 
   const classrooms = getActiveClassrooms();
   container.innerHTML = classrooms.map(c =>
-    `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</label>`
+    `<label class="filter-pill"><input type="checkbox" value="${escapeHtml(c.calendar_tag)}">${escapeHtml(c.name)}</label>`
   ).join('');
 
   container.addEventListener('change', () => {

@@ -469,16 +469,19 @@ function getReinstatementsForEvent(enrichedEvent, appData) {
   });
 }
 
-/** 振替: transfer_date（振替希望日）+ transfer_class（振替先教室）でマッチ */
+/** 振替: transfer_date（振替希望日）+ transfer_class（calendar_tag）でマッチ */
 function getTransfersForEvent(enrichedEvent, appData) {
   if (!appData || !appData.transfers || !enrichedEvent.classroom) return [];
   const eventDate = toISODate(new Date(enrichedEvent.start));
+  const calendarTag = enrichedEvent.class || '';
   const classroomName = enrichedEvent.classroomName;
 
   return appData.transfers.filter(t => {
     const fd = t.form_data || {};
     const dateMatch = normalizeDate(fd.transfer_date) === eventDate;
-    const classMatch = matchesClassroom(classroomName, toClassList(fd, 'transfer_class'));
+    // calendar_tagで直接マッチ（新データ）、フォールバックで名前マッチ（旧データ）
+    const classMatch = fd.transfer_class === calendarTag ||
+      matchesClassroom(classroomName, toClassList(fd, 'transfer_class'));
     return dateMatch && classMatch;
   });
 }
@@ -848,10 +851,15 @@ function renderAppSummaryCard(app, type) {
   const fields = SUMMARY_FIELDS[type] || [];
   const detailFunc = type === 'trial' ? 'showTrialDetail' : type === 'transfer' ? 'showTransferDetail' : 'showApplicationDetail';
 
+  const classIdx = type === 'transfer' ? getClassroomIndex() : null;
   const fieldsHtml = fields.map(f => {
     let value = fd[f.key];
     if (Array.isArray(value)) value = value.join('、');
     if (!value) return '';
+    // 振替の教室フィールドはcalendar_tagを表示名に変換
+    if (classIdx && (f.key === 'absent_class' || f.key === 'transfer_class')) {
+      value = classIdx[value]?.name || value;
+    }
     return `<div class="sch-summary-field">
       <span class="sch-summary-label">${escapeHtml(f.label)}</span>
       <span class="sch-summary-value">${escapeHtml(String(value))}</span>
