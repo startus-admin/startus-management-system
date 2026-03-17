@@ -371,11 +371,24 @@ function enrichEvent(event) {
   };
 }
 
+/** 教室名の正規化（空白・括弧・「教室」を除去して比較用文字列を作成） */
+function normalizeClassName(name) {
+  if (!name) return '';
+  return name
+    .replace(/[\s\u3000]/g, '')       // 半角・全角スペース除去
+    .replace(/[（()）]/g, '')          // 括弧除去
+    .replace(/教室/g, '');             // 「教室」除去
+}
+
 function matchesClassroom(classroomName, classList) {
   if (!classroomName || !classList.length) return false;
-  return classList.some(c =>
-    c === classroomName || c.includes(classroomName) || classroomName.includes(c)
-  );
+  const normName = normalizeClassName(classroomName);
+  return classList.some(c => {
+    if (c === classroomName || c.includes(classroomName) || classroomName.includes(c)) return true;
+    // 正規化マッチ（外部フォーム等で形式が異なる場合）
+    const normC = normalizeClassName(c);
+    return normC === normName || normC.includes(normName) || normName.includes(normC);
+  });
 }
 
 function toClassList(fd, ...keys) {
@@ -647,7 +660,7 @@ function renderWeekView(events, appData) {
       const transfers = getTransfersForEvent(e, appData);
 
       return `
-        <div class="sch-week-card" onclick="window.memberApp.showScheduleEventDetail('${escapeHtml(e.id)}')">
+        <div class="sch-week-card" onclick="window.memberApp.showScheduleEventDetail('${escapeHtml(e.id)}', '${toISODate(new Date(e.start))}')">
           <div class="sch-week-card-title">${escapeHtml(e.eventTitle)}</div>
           <div class="sch-week-card-time">${escapeHtml(e.timeSlot)}</div>
           ${e.venue ? `<div class="sch-week-card-venue">${escapeHtml(e.venue)}</div>` : ''}
@@ -707,7 +720,7 @@ function renderMonthView(events, appData) {
       .map(e => enrichEvent(e));
 
     const chips = dayEvents.slice(0, 3).map(e =>
-      `<div class="sch-month-chip" onclick="event.stopPropagation();window.memberApp.showScheduleEventDetail('${escapeHtml(e.id)}')" title="${escapeHtml(e.eventTitle)} ${escapeHtml(e.timeSlot)}">
+      `<div class="sch-month-chip" onclick="event.stopPropagation();window.memberApp.showScheduleEventDetail('${escapeHtml(e.id)}', '${toISODate(new Date(e.start))}')" title="${escapeHtml(e.eventTitle)} ${escapeHtml(e.timeSlot)}">
         ${escapeHtml(truncate(e.eventTitle, 10))}
       </div>`
     ).join('');
@@ -894,8 +907,15 @@ export function toggleAppSummary(appId, type) {
   }
 }
 
-export function showScheduleEventDetail(eventId) {
-  const event = allFetchedEvents.find(e => e.id === eventId);
+export function showScheduleEventDetail(eventId, eventDate) {
+  // eventDate指定時はeventsByDateから検索（繰り返しイベントのID重複対策）
+  let event;
+  if (eventDate && eventsByDate[eventDate]) {
+    event = eventsByDate[eventDate].find(e => e.id === eventId);
+  }
+  if (!event) {
+    event = allFetchedEvents.find(e => e.id === eventId);
+  }
   if (!event) return;
 
   const e = enrichEvent(event);
