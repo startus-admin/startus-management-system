@@ -317,6 +317,15 @@ function renderClassroomView() {
       if (id) openClassroomEditForm(id);
     });
   });
+
+  // 並替モード中に再描画された場合、ドラッグリスナーを再設定
+  if (classroomSortMode) {
+    wrap.classList.add('cr-sort-mode');
+    wrap.querySelectorAll('.cr-row').forEach(row => {
+      row.addEventListener('mousedown', onClassroomDragStart);
+      row.addEventListener('touchstart', onClassroomDragStart, { passive: false });
+    });
+  }
 }
 
 // --- 追加 / 編集フォーム ---
@@ -918,9 +927,14 @@ function onClassroomDragEnd() {
   items.forEach((item, index) => {
     const c = classroomCache.find(cr => cr.id === item.dataset.id);
     if (c) newOrder.push(c);
-    // 表示順番号を即座に更新
+    // 表示順番号を即座に更新（アイコンspanを保持）
     const orderEl = item.querySelector('.cr-td-order');
-    if (orderEl) orderEl.textContent = index + 1;
+    if (orderEl) {
+      const iconSpan = orderEl.querySelector('.cr-drag-icon');
+      orderEl.textContent = '';
+      if (iconSpan) orderEl.appendChild(iconSpan);
+      orderEl.appendChild(document.createTextNode(index + 1));
+    }
   });
   filteredClassrooms = newOrder;
 

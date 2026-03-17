@@ -6830,7 +6830,8 @@ select.form-control {
 }
 
 /* --- ドラッグアイコン（通常時は非表示） --- */
-.cr-drag-icon {
+/* specificity を .material-icons より高くして display:inline-block を上書き */
+span.cr-drag-icon {
   display: none;
   font-size: 16px;
   color: var(--gray-400);
