@@ -6829,20 +6829,22 @@ select.form-control {
   gap: 0 16px;
 }
 
-/* --- ドラッグハンドル --- */
-.cr-drag-handle {
+/* --- 並替モード --- */
+.cr-sort-mode .cr-row {
   cursor: grab;
-  color: var(--gray-400);
-  font-size: 18px;
   user-select: none;
   -webkit-user-select: none;
-  transition: color 0.15s;
 }
-.cr-drag-handle:hover {
-  color: var(--gray-600);
-}
-.cr-drag-handle:active {
+.cr-sort-mode .cr-row:active {
   cursor: grabbing;
+}
+.cr-sort-mode .grid-cell-arrow {
+  display: none;
+}
+#classroom-sort-btn.sort-active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
 }
 
 /* --- ドラッグ中のプレースホルダー --- */
@@ -6858,11 +6860,6 @@ select.form-control {
   background: #fff;
   opacity: 0.95;
   border-radius: 8px;
-  display: grid;
-  grid-template-columns: 36px minmax(140px, 2fr) auto 56px 90px minmax(100px, 1.5fr) minmax(80px, 1fr) 76px 52px 28px;
-  align-items: center;
-  gap: 0 12px;
-  padding: 14px 16px;
 }
 
 /* レスポンシブ: コーチ・月謝列を非表示 */
@@ -6876,13 +6873,6 @@ select.form-control {
   #classroom-table-wrap .cr-grid-header span:nth-child(8),
   #classroom-table-wrap .list-item .grid-cell:nth-child(7),
   #classroom-table-wrap .list-item .grid-cell:nth-child(8) {
-    display: none;
-  }
-  .cr-row-drag-clone {
-    grid-template-columns: 36px minmax(120px, 2fr) auto 56px 90px minmax(80px, 1.5fr) 52px 28px;
-  }
-  .cr-row-drag-clone .grid-cell:nth-child(7),
-  .cr-row-drag-clone .grid-cell:nth-child(8) {
     display: none;
   }
 }

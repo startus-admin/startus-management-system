@@ -26,7 +26,8 @@ import { openEmailListModal, copyEmailList } from './email-list.js';
 import {
   loadClassrooms, renderClassroomScreen, openClassroomAddForm,
   openClassroomEditForm, confirmDeleteClassroom, deleteClassroom,
-  initClassroomFilters, toggleClassroomFilterPanel, resetClassroomFilters
+  initClassroomFilters, toggleClassroomFilterPanel, resetClassroomFilters,
+  initClassroomSortButton
 } from './classroom.js';
 import {
   renderApplicationList, showApplicationDetail, updateApplicationStatus,
@@ -386,8 +387,9 @@ async function showApp(email) {
   initStaffFilters();
   initStaffSort();
 
-  // 教室マスタフィルタ初期化
+  // 教室マスタフィルタ・並替初期化
   initClassroomFilters();
+  initClassroomSortButton();
 
   // ショップ検索初期化
   initShopOrderSearch();
