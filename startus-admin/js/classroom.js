@@ -14,6 +14,7 @@ let classroomFilters = {
   query: '',
 };
 let classroomSortKey = 'display_order';
+let isDragging = false;
 
 // --- 定数 ---
 const DAYS_OF_WEEK = ['月', '火', '水', '木', '金', '土', '日'];
@@ -92,6 +93,14 @@ function feeHtml(fee, fee2) {
 
 function cellText(val) {
   return val ? escapeHtml(val) : '';
+}
+
+function hasActiveFilters() {
+  const defaultStatus = classroomFilters.status.length === 1 && classroomFilters.status[0] === 'active';
+  return classroomFilters.query !== ''
+    || classroomFilters.category.length > 0
+    || classroomFilters.day.length > 0
+    || !defaultStatus;
 }
 
 // --- 教室マスタ画面レンダリング ---
@@ -270,6 +279,8 @@ function renderClassroomView() {
     countEl.textContent = total === shown ? `${shown}教室` : `${total}教室中 ${shown}教室表示`;
   }
 
+  const dragEnabled = classroomSortKey === 'display_order' && !hasActiveFilters();
+
   const GRID_HEADER = `
     <div class="cr-grid-header">
       <span>#</span>
@@ -284,15 +295,18 @@ function renderClassroomView() {
       <span></span>
     </div>`;
 
-  const rows = classrooms.map(c => {
+  const rows = classrooms.map((c, i) => {
     const statusBadge = c.is_active
       ? '<span class="cr-status-on">有効</span>'
       : '<span class="cr-status-off">無効</span>';
     const inactiveClass = c.is_active ? '' : ' cr-row-inactive';
+    const orderCell = dragEnabled
+      ? '<span class="material-icons cr-drag-handle">drag_indicator</span>'
+      : c.display_order;
 
     return `
       <div class="list-item cr-row${inactiveClass}" data-id="${c.id}">
-        <div class="grid-cell cr-td-order">${c.display_order}</div>
+        <div class="grid-cell cr-td-order">${orderCell}</div>
         <div class="grid-cell grid-cell-name" title="${escapeHtml(c.name)}"><strong>${escapeHtml(c.name)}</strong></div>
         <div class="grid-cell">${categoryHtml(c.category)}</div>
         <div class="grid-cell grid-cell-badges">${dayBadgesHtml(c.day_of_week)}</div>
@@ -310,10 +324,16 @@ function renderClassroomView() {
   // 行クリックで編集モーダルを開く
   wrap.querySelectorAll('.cr-row').forEach(row => {
     row.addEventListener('click', () => {
+      if (isDragging) return;
       const id = row.dataset.id;
       if (id) openClassroomEditForm(id);
     });
   });
+
+  // ドラッグ&ドロップ並べ替え
+  if (dragEnabled) {
+    initClassroomDrag(wrap);
+  }
 }
 
 // --- 追加 / 編集フォーム ---
@@ -761,6 +781,156 @@ function getSubClassesFromUI() {
   const list = document.getElementById('sc-list');
   if (!list) return [];
   return Array.from(list.querySelectorAll('.sc-item .sc-name')).map(el => el.textContent.trim()).filter(Boolean);
+}
+
+// --- ドラッグ&ドロップ並べ替え ---
+
+function initClassroomDrag(wrap) {
+  const getY = (e) => e.touches ? e.touches[0].clientY : e.clientY;
+  let dragItem = null;
+  let dragClone = null;
+  let startY = 0;
+
+  const onStart = (e) => {
+    const handle = e.target.closest('.cr-drag-handle');
+    if (!handle) return;
+    const row = handle.closest('.cr-row');
+    if (!row) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging = true;
+    dragItem = row;
+    startY = getY(e);
+
+    const rect = row.getBoundingClientRect();
+    dragClone = row.cloneNode(true);
+    dragClone.classList.add('cr-row-drag-clone');
+    dragClone.style.position = 'fixed';
+    dragClone.style.width = rect.width + 'px';
+    dragClone.style.left = rect.left + 'px';
+    dragClone.style.top = rect.top + 'px';
+    dragClone.style.zIndex = '9999';
+    dragClone.style.pointerEvents = 'none';
+    dragClone.style.margin = '0';
+    dragClone.style.transition = 'none';
+    document.body.appendChild(dragClone);
+
+    row.classList.add('cr-row-drag-placeholder');
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+  };
+
+  const onMove = (e) => {
+    if (!dragItem) return;
+    e.preventDefault();
+
+    const y = getY(e);
+    dragClone.style.top = (parseFloat(dragClone.style.top) + (y - startY)) + 'px';
+    startY = y;
+
+    // 挿入位置を検出
+    const rows = Array.from(wrap.querySelectorAll('.cr-row:not(.cr-row-drag-placeholder)'));
+    let insertTarget = null;
+    for (const r of rows) {
+      const rect = r.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) {
+        insertTarget = r;
+        break;
+      }
+    }
+
+    // FLIP animation
+    const allRows = Array.from(wrap.querySelectorAll('.cr-row'));
+    const firstRects = new Map();
+    for (const el of allRows) {
+      firstRects.set(el, el.getBoundingClientRect());
+    }
+
+    if (insertTarget) {
+      wrap.insertBefore(dragItem, insertTarget);
+    } else {
+      // ヘッダーの後に追加（最後尾）
+      wrap.appendChild(dragItem);
+    }
+
+    for (const [el, firstRect] of firstRects) {
+      const lastRect = el.getBoundingClientRect();
+      const dy = firstRect.top - lastRect.top;
+      if (Math.abs(dy) > 1 && el !== dragItem) {
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${dy}px)`;
+        requestAnimationFrame(() => {
+          el.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+          el.style.transform = '';
+        });
+      }
+    }
+  };
+
+  const onEnd = () => {
+    if (!dragItem) return;
+    dragItem.classList.remove('cr-row-drag-placeholder');
+    if (dragClone) dragClone.remove();
+    dragClone = null;
+
+    // DOM順序から新しい display_order を算出して保存
+    const orderedRows = Array.from(wrap.querySelectorAll('.cr-row'));
+    const updates = [];
+    orderedRows.forEach((row, i) => {
+      const id = row.dataset.id;
+      const newOrder = i + 1;
+      const c = classroomCache.find(cr => cr.id === id);
+      if (c && c.display_order !== newOrder) {
+        c.display_order = newOrder;
+        updates.push({ id, display_order: newOrder });
+      }
+    });
+
+    // filteredClassrooms をDOM順に並べ直す
+    const idOrder = orderedRows.map(r => r.dataset.id);
+    filteredClassrooms.sort((a, b) => idOrder.indexOf(a.id) - idOrder.indexOf(b.id));
+
+    dragItem = null;
+
+    // ドラッグ終了後にクリック抑止を少し遅延解除
+    setTimeout(() => { isDragging = false; }, 100);
+
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onEnd);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onEnd);
+
+    if (updates.length > 0) {
+      saveClassroomSortOrder(updates);
+    }
+  };
+
+  wrap.addEventListener('mousedown', onStart);
+  wrap.addEventListener('touchstart', onStart, { passive: false });
+}
+
+async function saveClassroomSortOrder(updates) {
+  try {
+    const results = await Promise.all(
+      updates.map(u =>
+        supabase.from('classrooms').update({ display_order: u.display_order }).eq('id', u.id)
+      )
+    );
+    const failed = results.filter(r => r.error);
+    if (failed.length > 0) {
+      console.error('並び順の保存エラー:', failed.map(r => r.error));
+      showToast('並び順の保存に失敗しました', 'error');
+    } else {
+      showToast('並び順を保存しました', 'success');
+    }
+  } catch (error) {
+    console.error('並び順の保存エラー:', error);
+    showToast('並び順の保存に失敗しました', 'error');
+  }
 }
 
 // --- 削除 ---
