@@ -187,6 +187,9 @@ export async function initChat(staffInfo) {
   await loadUnreadCounts();
   updateUnreadBadge();
   subscribeRealtime();
+  // Prevent wheel events inside chat sidebar from scrolling the background page
+  const sidebar = document.getElementById('chat-sidebar');
+  if (sidebar) sidebar.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
 }
 
 export function destroyChat() {
@@ -197,7 +200,6 @@ export function destroyChat() {
   messages = [];
   unreadCounts = {};
   isOpen = false;
-  document.body.style.overflow = '';
 }
 
 // ===== Toggle Sidebar =====
@@ -210,8 +212,6 @@ export function toggleChat() {
   if (sidebar) sidebar.classList.toggle('open', isOpen);
   if (overlay) overlay.classList.toggle('active', isOpen);
   if (fab) fab.classList.toggle('chat-fab-hidden', isOpen);
-  // Lock/unlock background scroll so chat scrolls immediately
-  document.body.style.overflow = isOpen ? 'hidden' : '';
   if (isOpen) {
     if (currentView === 'channel-list') renderChannelList();
     else renderMessageThread();
