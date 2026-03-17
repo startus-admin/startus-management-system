@@ -197,6 +197,7 @@ export function destroyChat() {
   messages = [];
   unreadCounts = {};
   isOpen = false;
+  document.body.style.overflow = '';
 }
 
 // ===== Toggle Sidebar =====
@@ -209,6 +210,8 @@ export function toggleChat() {
   if (sidebar) sidebar.classList.toggle('open', isOpen);
   if (overlay) overlay.classList.toggle('active', isOpen);
   if (fab) fab.classList.toggle('chat-fab-hidden', isOpen);
+  // Lock/unlock background scroll so chat scrolls immediately
+  document.body.style.overflow = isOpen ? 'hidden' : '';
   if (isOpen) {
     if (currentView === 'channel-list') renderChannelList();
     else renderMessageThread();

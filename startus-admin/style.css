@@ -4082,6 +4082,7 @@ select.form-control {
   display: flex;
   flex-direction: column;
   transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overscroll-behavior: contain;
 }
 
 .chat-sidebar.open {
@@ -4117,6 +4118,7 @@ select.form-control {
   display: flex;
   flex-direction: column;
   position: relative;
+  overscroll-behavior: contain;
 }
 
 /* ---- Channel List (Slack-style sections) ---- */
@@ -4309,6 +4311,7 @@ select.form-control {
   padding: 8px 0;
   display: flex;
   flex-direction: column;
+  overscroll-behavior: contain;
 }
 
 /* 吹き出しメッセージ行 */
