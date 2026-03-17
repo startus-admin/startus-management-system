@@ -202,6 +202,7 @@ function getTransferWarnings(fd) {
     const transferName = resolveClassTag(fd.transfer_class);
     if (INELIGIBLE_DEST_CLASSES.some(c => transferName.includes(c))) {
       warnings.push({ type: 'danger', label: '振替先不可', detail: `${transferName}は振替先に指定できません` });
+    }
   }
 
   return warnings;
