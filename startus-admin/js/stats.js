@@ -5,9 +5,94 @@ import { tagToName } from './class-utils.js';
 
 const MONTHS = ['04','05','06','07','08','09','10','11','12','01','02','03'];
 
+// Chart.js インスタンス管理
+let chartInstances = [];
+
+function destroyAllCharts() {
+  chartInstances.forEach(c => c.destroy());
+  chartInstances = [];
+}
+
+// カラーパレット
+const COLORS = {
+  primary: '#3b82f6',
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  gray: '#94a3b8',
+  indigo: '#6366f1',
+  purple: '#8b5cf6',
+  pink: '#ec4899',
+  teal: '#14b8a6',
+  orange: '#f97316',
+  cyan: '#06b6d4',
+  lime: '#84cc16',
+};
+const CHART_PALETTE = [
+  COLORS.primary, COLORS.success, COLORS.warning, COLORS.danger,
+  COLORS.indigo, COLORS.purple, COLORS.pink, COLORS.teal,
+  COLORS.orange, COLORS.cyan, COLORS.lime, COLORS.gray
+];
+
+// Chart.js 共通設定
+function setupChartDefaults() {
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.font.family = "'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif";
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#64748b';
+  Chart.defaults.animation.duration = 800;
+  Chart.defaults.animation.easing = 'easeOutQuart';
+}
+
+// カウントアップアニメーション
+function animateCount(el, target, suffix = '', duration = 800) {
+  const isPercent = suffix === '%';
+  let startTime = null;
+  const step = (ts) => {
+    if (!startTime) startTime = ts;
+    const progress = Math.min((ts - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(target * eased) + suffix;
+    if (progress < 1) requestAnimationFrame(step);
+    else el.textContent = target + suffix;
+  };
+  requestAnimationFrame(step);
+}
+
+// 強化カード生成
+function statCardEnhanced(title, value, sub, icon, color, animateId) {
+  const colorClass = `color-${color}`;
+  const bgClass = `bg-${color}`;
+  const colorMap = {
+    primary: 'var(--primary-color)', success: 'var(--success-color)',
+    warning: 'var(--warning-color)', danger: 'var(--danger-color)',
+    gray: 'var(--gray-400)',
+  };
+  return `<div class="stat-card stat-card-enhanced ${colorClass} stats-animate">
+    <div class="stat-card-icon-wrap ${bgClass}">
+      <span class="material-icons">${icon}</span>
+    </div>
+    <div class="stat-card-title">${title}</div>
+    <div class="stat-card-value" style="color:${colorMap[color] || colorMap.primary}" data-animate-count="${animateId}">${value}</div>
+    ${sub ? `<div style="font-size:0.8rem;color:var(--gray-400);margin-top:2px">${sub}</div>` : ''}
+  </div>`;
+}
+
+// チャート生成ヘルパー
+function createChart(canvasId, config) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+  const chart = new Chart(canvas, config);
+  chartInstances.push(chart);
+  return chart;
+}
+
 export async function renderStats() {
   const container = document.getElementById('stats-content');
   if (!container) return;
+
+  destroyAllCharts();
+  setupChartDefaults();
 
   container.innerHTML = '<div class="fee-loading">集計中...</div>';
 
@@ -51,85 +136,180 @@ export async function renderStats() {
     });
   });
   const feeRate = totalMonths > 0 ? Math.round((paidMonths / totalMonths) * 100) : 0;
+  const feeColor = feeRate >= 80 ? 'success' : feeRate >= 50 ? 'warning' : 'danger';
 
-  let html = '<div class="stats-grid">';
+  // ===== HTML構築 =====
+  let html = '';
 
-  // 在籍数カード
-  html += statCard('在籍', active.length, '人', 'people', 'primary');
-  html += statCard('休会', suspended.length, '人', 'pause_circle', 'warning');
-  html += statCard('退会', withdrawn.length, '人', 'cancel', 'gray');
-  html += statCard(`会費徴収率 (${year}年度)`, `${feeRate}%`, `${paidMonths}/${totalMonths}月`, 'payments', feeRate >= 80 ? 'success' : feeRate >= 50 ? 'warning' : 'danger');
-
+  // サマリーカード
+  html += '<div class="stats-grid">';
+  html += statCardEnhanced('在籍', active.length, '人', 'people', 'primary', 'active');
+  html += statCardEnhanced('休会', suspended.length, '人', 'pause_circle', 'warning', 'suspended');
+  html += statCardEnhanced('退会', withdrawn.length, '人', 'cancel', 'gray', 'withdrawn');
+  html += statCardEnhanced(`会費徴収率 (${year}年度)`, `${feeRate}%`, `${paidMonths}/${totalMonths}月`, 'payments', feeColor, 'feeRate');
   html += '</div>';
 
-  // 種別内訳
-  html += '<div class="stat-card"><div class="stat-card-title">種別内訳（在籍者）</div>';
-  const sortedTypes = Object.entries(typeMap).sort((a, b) => b[1] - a[1]);
-  sortedTypes.forEach(([type, count]) => {
-    const pct = active.length > 0 ? Math.round((count / active.length) * 100) : 0;
-    html += `<div class="stat-list-item">
-      <span>${type}</span>
-      <span><strong>${count}</strong>人（${pct}%）</span>
-    </div>
-    <div class="stat-bar"><div class="stat-bar-fill stat-bar-fill-primary" style="width:${pct}%"></div></div>`;
-  });
-  html += '</div>';
+  // チャートセクション
+  html += '<div class="stats-section-header"><span class="material-icons">analytics</span>会員分析</div>';
+  html += '<div class="stats-charts-grid">';
 
-  // 教室内訳
-  if (Object.keys(classMap).length > 0) {
-    html += '<div class="stat-card" style="margin-top:16px"><div class="stat-card-title">教室別（在籍者）</div>';
-    const sortedClasses = Object.entries(classMap).sort((a, b) => b[1] - a[1]);
-    sortedClasses.forEach(([cls, count]) => {
-      const pct = active.length > 0 ? Math.round((count / active.length) * 100) : 0;
-      html += `<div class="stat-list-item">
-        <span>${tagToName(cls)}</span>
-        <span><strong>${count}</strong>人</span>
-      </div>
-      <div class="stat-bar"><div class="stat-bar-fill stat-bar-fill-success" style="width:${pct}%"></div></div>`;
-    });
-    html += '</div>';
-  }
+  // 種別内訳 Doughnut
+  html += `<div class="stats-chart-card stats-animate">
+    <h4><span class="material-icons">pie_chart</span>種別内訳（在籍者）</h4>
+    <div class="chart-wrap"><canvas id="chart-member-type"></canvas></div>
+  </div>`;
 
-  // 学年内訳
-  if (Object.keys(gradeMap).length > 0) {
-    html += '<div class="stat-card" style="margin-top:16px"><div class="stat-card-title">学年別（在籍者）</div>';
-    const sortedGrades = Object.entries(gradeMap).sort((a, b) => b[1] - a[1]);
-    sortedGrades.forEach(([grade, count]) => {
-      const pct = active.length > 0 ? Math.round((count / active.length) * 100) : 0;
-      html += `<div class="stat-list-item">
-        <span>${grade}</span>
-        <span><strong>${count}</strong>人</span>
-      </div>
-      <div class="stat-bar"><div class="stat-bar-fill stat-bar-fill-warning" style="width:${pct}%"></div></div>`;
-    });
-    html += '</div>';
-  }
+  // 学年別 Bar
+  html += `<div class="stats-chart-card stats-animate">
+    <h4><span class="material-icons">school</span>学年別（在籍者）</h4>
+    <div class="chart-wrap"><canvas id="chart-grade"></canvas></div>
+  </div>`;
+
+  // 教室別 Horizontal Bar (全幅)
+  html += `<div class="stats-chart-card stats-animate full-width">
+    <h4><span class="material-icons">meeting_room</span>教室別（在籍者）</h4>
+    <div class="chart-wrap" style="height:${Math.max(320, Object.keys(classMap).length * 28)}px"><canvas id="chart-classroom"></canvas></div>
+  </div>`;
+
+  html += '</div>'; // stats-charts-grid
 
   // 体験転換率セクション
   html += '<div id="trial-stats-section"></div>';
 
   container.innerHTML = html;
 
+  // ===== カウントアップアニメーション =====
+  const countTargets = {
+    active: { value: active.length, suffix: '' },
+    suspended: { value: suspended.length, suffix: '' },
+    withdrawn: { value: withdrawn.length, suffix: '' },
+    feeRate: { value: feeRate, suffix: '%' },
+  };
+
+  Object.entries(countTargets).forEach(([key, { value, suffix }]) => {
+    const el = container.querySelector(`[data-animate-count="${key}"]`);
+    if (el) animateCount(el, value, suffix);
+  });
+
+  // ===== Chart.js チャート描画 =====
+  if (typeof Chart !== 'undefined') {
+    // 種別内訳 Doughnut
+    const sortedTypes = Object.entries(typeMap).sort((a, b) => b[1] - a[1]);
+    createChart('chart-member-type', {
+      type: 'doughnut',
+      data: {
+        labels: sortedTypes.map(([t]) => t),
+        datasets: [{
+          data: sortedTypes.map(([, c]) => c),
+          backgroundColor: CHART_PALETTE.slice(0, sortedTypes.length),
+          borderWidth: 2,
+          borderColor: '#fff',
+          hoverBorderWidth: 3,
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { padding: 16, usePointStyle: true, pointStyle: 'circle', font: { size: 12 } }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = Math.round((ctx.raw / total) * 100);
+                return ` ${ctx.label}: ${ctx.raw}人 (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // 学年別 Bar
+    const sortedGrades = Object.entries(gradeMap).sort((a, b) => b[1] - a[1]);
+    createChart('chart-grade', {
+      type: 'bar',
+      data: {
+        labels: sortedGrades.map(([g]) => g),
+        datasets: [{
+          data: sortedGrades.map(([, c]) => c),
+          backgroundColor: sortedGrades.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length] + '99'),
+          borderColor: sortedGrades.map((_, i) => CHART_PALETTE[i % CHART_PALETTE.length]),
+          borderWidth: 1.5,
+          borderRadius: 6,
+          barPercentage: 0.7,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: { label: (ctx) => ` ${ctx.raw}人` }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { stepSize: 5 },
+            grid: { color: '#f1f5f9' }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 11 } }
+          }
+        }
+      }
+    });
+
+    // 教室別 Horizontal Bar
+    const sortedClasses = Object.entries(classMap).sort((a, b) => b[1] - a[1]);
+    createChart('chart-classroom', {
+      type: 'bar',
+      data: {
+        labels: sortedClasses.map(([cls]) => tagToName(cls)),
+        datasets: [{
+          data: sortedClasses.map(([, c]) => c),
+          backgroundColor: COLORS.primary + '80',
+          borderColor: COLORS.primary,
+          borderWidth: 1.5,
+          borderRadius: 4,
+          barPercentage: 0.65,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: { label: (ctx) => ` ${ctx.raw}人` }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: { stepSize: 5 },
+            grid: { color: '#f1f5f9' }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { font: { size: 11 } }
+          }
+        }
+      }
+    });
+  }
+
   // 体験統計を非同期で描画
   await renderTrialStatsSection();
-}
-
-function statCard(title, value, sub, icon, color) {
-  const colorMap = {
-    primary: 'var(--primary-color)',
-    success: 'var(--success-color)',
-    warning: 'var(--warning-color)',
-    danger: 'var(--danger-color)',
-    gray: 'var(--gray-400)',
-  };
-  return `<div class="stat-card">
-    <div class="stat-card-title">
-      <span class="material-icons" style="font-size:18px;color:${colorMap[color] || colorMap.primary};vertical-align:middle;margin-right:4px">${icon}</span>
-      ${title}
-    </div>
-    <div class="stat-card-value" style="color:${colorMap[color] || colorMap.primary}">${value}</div>
-    ${sub ? `<div style="font-size:0.8rem;color:var(--gray-400);margin-top:2px">${sub}</div>` : ''}
-  </div>`;
 }
 
 // ===== 体験転換率統計 =====
@@ -143,6 +323,14 @@ const TRIAL_STATUS_BADGE = {
   pending: 'badge-app-pending', reviewed: 'badge-app-reviewed',
   approved: 'badge-app-approved', enrolled: 'badge-enrolled',
   rejected: 'badge-app-rejected'
+};
+
+const TRIAL_STATUS_COLORS = {
+  pending: '#f59e0b',
+  reviewed: '#3b82f6',
+  approved: '#10b981',
+  enrolled: '#6366f1',
+  rejected: '#ef4444',
 };
 
 const FY_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
@@ -185,10 +373,10 @@ async function renderTrialStatsSection() {
 
   if (cachedTrials.length === 0) {
     el.innerHTML = `
-      <h3 style="margin-top:32px;margin-bottom:12px;font-size:1.1rem;color:var(--gray-700)">
-        <span class="material-icons" style="font-size:20px;vertical-align:middle;margin-right:4px">directions_run</span>
+      <div class="stats-section-header">
+        <span class="material-icons">directions_run</span>
         体験→入会 転換率
-      </h3>
+      </div>
       <p class="text-muted">体験データがありません</p>`;
     return;
   }
@@ -230,27 +418,32 @@ async function renderTrialStatsSection() {
   const overallRate = total > 0
     ? Math.round((enrolledCount / total) * 100) : 0;
 
+  // 月別データ準備
+  const monthlyData = FY_MONTHS.map(m => {
+    const monthTrials = trials.filter(t => getTrialMonth(t.created_at) === m);
+    const monthTotal = monthTrials.length;
+    const monthEnrolled = monthTrials.filter(t =>
+      t.status === 'enrolled' || t.linked_application_id
+    ).length;
+    return { month: m, total: monthTotal, enrolled: monthEnrolled };
+  });
+
   // 月別内訳テーブル
   let monthlyTableHtml = '';
   if (selectedTrialFY !== 'all' && total > 0) {
-    const monthlyRows = FY_MONTHS.map(m => {
-      const monthTrials = trials.filter(t => getTrialMonth(t.created_at) === m);
-      const monthTotal = monthTrials.length;
-      const monthEnrolled = monthTrials.filter(t =>
-        t.status === 'enrolled' || t.linked_application_id
-      ).length;
-      const monthRate = monthTotal > 0 ? Math.round((monthEnrolled / monthTotal) * 100) + '%' : '-';
+    const monthlyRows = monthlyData.map(d => {
+      const rate = d.total > 0 ? Math.round((d.enrolled / d.total) * 100) + '%' : '-';
       return `<tr>
-        <td>${MONTH_LABELS[m]}</td>
-        <td style="text-align:right">${monthTotal}</td>
-        <td style="text-align:right">${monthEnrolled}</td>
-        <td style="text-align:right">${monthRate}</td>
+        <td>${MONTH_LABELS[d.month]}</td>
+        <td style="text-align:right">${d.total}</td>
+        <td style="text-align:right">${d.enrolled}</td>
+        <td style="text-align:right">${rate}</td>
       </tr>`;
     }).join('');
 
     monthlyTableHtml = `
       <div class="trial-stats-section" style="margin-bottom:16px">
-        <h4>月別内訳</h4>
+        <h4><span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;color:var(--gray-400)">table_chart</span>月別内訳</h4>
         <table class="trial-monthly-table">
           <thead><tr>
             <th>月</th>
@@ -262,18 +455,6 @@ async function renderTrialStatsSection() {
         </table>
       </div>`;
   }
-
-  // ステータス別バー
-  const statusBars = Object.entries(TRIAL_STATUS_LABELS).map(([key, label]) => {
-    const count = byStatus[key] || 0;
-    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-    return `
-      <div class="stat-bar-row">
-        <span class="stat-bar-label">${escapeHtml(label)}</span>
-        <div class="stat-bar-track"><div class="stat-bar-fill ${TRIAL_STATUS_BADGE[key]}" style="width:${pct}%"></div></div>
-        <span class="stat-bar-value">${count}</span>
-      </div>`;
-  }).join('');
 
   // 紹介元集計
   const byRoute = {};
@@ -312,10 +493,10 @@ async function renderTrialStatsSection() {
     .join('');
 
   el.innerHTML = `
-    <h3 style="margin-top:32px;margin-bottom:12px;font-size:1.1rem;color:var(--gray-700)">
-      <span class="material-icons" style="font-size:20px;vertical-align:middle;margin-right:4px">directions_run</span>
+    <div class="stats-section-header">
+      <span class="material-icons">directions_run</span>
       体験→入会 転換率
-    </h3>
+    </div>
 
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
       <select id="trial-stats-fy" onchange="window.memberApp.changeStatsFY(this.value)"
@@ -327,21 +508,37 @@ async function renderTrialStatsSection() {
 
     ${total === 0 ? '<p class="text-muted">選択期間のデータがありません</p>' : `
     <div class="trial-stats-grid">
-      <div class="stat-card">
+      <div class="stat-card stat-card-enhanced color-primary stats-animate">
+        <div class="stat-card-icon-wrap bg-primary"><span class="material-icons">group_add</span></div>
         <div class="stat-card-title">体験数</div>
-        <div class="stat-card-value">${total}</div>
+        <div class="stat-card-value" style="color:var(--primary-color)">${total}</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-enhanced color-success stats-animate">
+        <div class="stat-card-icon-wrap bg-success"><span class="material-icons">how_to_reg</span></div>
         <div class="stat-card-title">入会数</div>
-        <div class="stat-card-value">${enrolledCount}</div>
+        <div class="stat-card-value" style="color:var(--success-color)">${enrolledCount}</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-enhanced color-warning stats-animate">
+        <div class="stat-card-icon-wrap bg-warning"><span class="material-icons">trending_up</span></div>
         <div class="stat-card-title">転換率（体験済み対比）</div>
-        <div class="stat-card-value">${conversionRate}%</div>
+        <div class="stat-card-value" style="color:var(--warning-color)">${conversionRate}%</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card-enhanced color-gray stats-animate">
+        <div class="stat-card-icon-wrap bg-gray"><span class="material-icons">percent</span></div>
         <div class="stat-card-title">転換率（全体対比）</div>
-        <div class="stat-card-value">${overallRate}%</div>
+        <div class="stat-card-value" style="color:var(--gray-400)">${overallRate}%</div>
+      </div>
+    </div>
+
+    <div class="stats-charts-grid">
+      ${selectedTrialFY !== 'all' ? `
+      <div class="stats-chart-card stats-animate">
+        <h4><span class="material-icons">show_chart</span>月別推移</h4>
+        <div class="chart-wrap"><canvas id="chart-trial-monthly"></canvas></div>
+      </div>` : ''}
+      <div class="stats-chart-card stats-animate">
+        <h4><span class="material-icons">donut_large</span>ステータス別</h4>
+        <div class="chart-wrap"><canvas id="chart-trial-status"></canvas></div>
       </div>
     </div>
 
@@ -349,21 +546,122 @@ async function renderTrialStatsSection() {
 
     <div class="trial-stats-sections">
       <div class="trial-stats-section">
-        <h4>ステータス別</h4>
-        ${statusBars}
-      </div>
-      <div class="trial-stats-section">
-        <h4>紹介元</h4>
+        <h4><span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;color:var(--gray-400)">campaign</span>紹介元</h4>
         ${routeRows || '<p class="text-muted">データなし</p>'}
       </div>
       <div class="trial-stats-section">
-        <h4>教室別</h4>
+        <h4><span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;color:var(--gray-400)">meeting_room</span>教室別</h4>
         ${classRows || '<p class="text-muted">データなし</p>'}
       </div>
     </div>`}`;
+
+  // ===== 体験セクションのチャート描画 =====
+  if (typeof Chart !== 'undefined' && total > 0) {
+    // 月別推移チャート (Mixed: bar + line)
+    if (selectedTrialFY !== 'all') {
+      createChart('chart-trial-monthly', {
+        type: 'bar',
+        data: {
+          labels: FY_MONTHS.map(m => MONTH_LABELS[m]),
+          datasets: [
+            {
+              label: '体験数',
+              data: monthlyData.map(d => d.total),
+              backgroundColor: COLORS.primary + '66',
+              borderColor: COLORS.primary,
+              borderWidth: 1.5,
+              borderRadius: 4,
+              order: 2,
+            },
+            {
+              label: '入会数',
+              data: monthlyData.map(d => d.enrolled),
+              type: 'line',
+              borderColor: COLORS.success,
+              backgroundColor: COLORS.success + '22',
+              borderWidth: 2.5,
+              pointRadius: 4,
+              pointBackgroundColor: COLORS.success,
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              order: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 12 } }
+            },
+            tooltip: {
+              callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw}件` }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1 },
+              grid: { color: '#f1f5f9' }
+            },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ステータス別 Doughnut
+    const statusEntries = Object.entries(TRIAL_STATUS_LABELS);
+    createChart('chart-trial-status', {
+      type: 'doughnut',
+      data: {
+        labels: statusEntries.map(([, label]) => label),
+        datasets: [{
+          data: statusEntries.map(([key]) => byStatus[key] || 0),
+          backgroundColor: statusEntries.map(([key]) => TRIAL_STATUS_COLORS[key]),
+          borderWidth: 2,
+          borderColor: '#fff',
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '55%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { padding: 12, usePointStyle: true, pointStyle: 'circle', font: { size: 12 } }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? Math.round((ctx.raw / total) * 100) : 0;
+                return ` ${ctx.label}: ${ctx.raw}件 (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
 export function changeStatsFY(value) {
+  // 体験セクションのチャートだけ破棄
+  chartInstances = chartInstances.filter(c => {
+    const id = c.canvas?.id || '';
+    if (id.startsWith('chart-trial-')) {
+      c.destroy();
+      return false;
+    }
+    return true;
+  });
   selectedTrialFY = value === 'all' ? 'all' : parseInt(value, 10);
   renderTrialStatsSection();
 }
