@@ -6829,28 +6829,29 @@ select.form-control {
   gap: 0 16px;
 }
 
-/* --- ドラッグアイコン（通常時は非表示） --- */
-/* specificity を .material-icons より高くして display:inline-block を上書き */
-span.cr-drag-icon {
+/* --- ドラッグハンドル（通常時は非表示） --- */
+.cr-drag-handle {
   display: none;
-  font-size: 16px;
+  align-items: center;
   color: var(--gray-400);
-  vertical-align: middle;
-  margin-right: 2px;
+  cursor: grab;
+}
+.cr-drag-handle .material-icons {
+  font-size: 1.1rem;
 }
 
 /* --- 並替モード --- */
-.cr-sort-mode .cr-row {
+.cr-sort-mode .cr-drag-handle {
+  display: inline-flex;
+  color: var(--primary-color);
+}
+.cr-sort-mode .list-item {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
 }
-.cr-sort-mode .cr-row:active {
+.cr-sort-mode .list-item:active {
   cursor: grabbing;
-}
-.cr-sort-mode .cr-drag-icon {
-  display: inline;
-  color: var(--primary-color);
 }
 .cr-sort-mode .cr-td-order {
   white-space: nowrap;
@@ -6867,8 +6868,8 @@ span.cr-drag-icon {
 /* --- ドラッグ中のプレースホルダー --- */
 .cr-row-drag-placeholder {
   opacity: 0.3;
-  border: 2px dashed var(--primary-color) !important;
-  background: var(--primary-lighter) !important;
+  border: 2px dashed var(--primary-color);
+  background: var(--blue-50, #eff6ff);
 }
 
 /* --- ドラッグ中のクローン --- */

@@ -294,7 +294,7 @@ function renderClassroomView() {
 
     return `
       <div class="list-item cr-row${inactiveClass}" data-id="${c.id}">
-        <div class="grid-cell cr-td-order"><span class="material-icons cr-drag-icon">drag_indicator</span>${c.display_order}</div>
+        <div class="grid-cell cr-td-order"><span class="cr-drag-handle"><span class="material-icons">drag_indicator</span></span><span class="cr-order-num">${c.display_order}</span></div>
         <div class="grid-cell grid-cell-name" title="${escapeHtml(c.name)}"><strong>${escapeHtml(c.name)}</strong></div>
         <div class="grid-cell">${categoryHtml(c.category)}</div>
         <div class="grid-cell grid-cell-badges">${dayBadgesHtml(c.day_of_week)}</div>
@@ -921,22 +921,20 @@ function onClassroomDragEnd() {
   classroomDragState.clone.remove();
   classroomDragState.item.classList.remove('cr-row-drag-placeholder');
 
-  // DOM順序に合わせてキャッシュを更新し、番号を振り直す
+  // DOM順序に合わせてキャッシュを更新
   const items = classroomDragState.container.querySelectorAll('.cr-row');
   const newOrder = [];
-  items.forEach((item, index) => {
+  items.forEach(item => {
     const c = classroomCache.find(cr => cr.id === item.dataset.id);
     if (c) newOrder.push(c);
-    // 表示順番号を即座に更新（アイコンspanを保持）
-    const orderEl = item.querySelector('.cr-td-order');
-    if (orderEl) {
-      const iconSpan = orderEl.querySelector('.cr-drag-icon');
-      orderEl.textContent = '';
-      if (iconSpan) orderEl.appendChild(iconSpan);
-      orderEl.appendChild(document.createTextNode(index + 1));
-    }
   });
   filteredClassrooms = newOrder;
+
+  // 表示順番号を即座に更新
+  items.forEach((item, index) => {
+    const numEl = item.querySelector('.cr-order-num');
+    if (numEl) numEl.textContent = index + 1;
+  });
 
   document.removeEventListener('mousemove', onClassroomDragMove);
   document.removeEventListener('mouseup', onClassroomDragEnd);
