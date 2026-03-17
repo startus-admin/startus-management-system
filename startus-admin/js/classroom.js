@@ -277,10 +277,8 @@ function renderClassroomView() {
       <span>カテゴリ</span>
       <span>曜日</span>
       <span>時間</span>
-      <span>対象</span>
       <span>会場</span>
       <span>コーチ</span>
-      <span>定員</span>
       <span>月謝</span>
       <span>状態</span>
       <span></span>
@@ -291,19 +289,16 @@ function renderClassroomView() {
       ? '<span class="cr-status-on">有効</span>'
       : '<span class="cr-status-off">無効</span>';
     const inactiveClass = c.is_active ? '' : ' cr-row-inactive';
-    const capacityText = c.capacity != null ? c.capacity + '名' : '';
 
     return `
       <div class="list-item cr-row${inactiveClass}" data-id="${c.id}">
         <div class="grid-cell cr-td-order">${c.display_order}</div>
-        <div class="grid-cell grid-cell-name"><strong>${escapeHtml(c.name)}</strong></div>
+        <div class="grid-cell grid-cell-name" title="${escapeHtml(c.name)}"><strong>${escapeHtml(c.name)}</strong></div>
         <div class="grid-cell">${categoryHtml(c.category)}</div>
         <div class="grid-cell grid-cell-badges">${dayBadgesHtml(c.day_of_week)}</div>
         <div class="grid-cell cr-td-time">${cellText(c.time_slot)}</div>
-        <div class="grid-cell cr-td-target">${cellText(c.target)}</div>
-        <div class="grid-cell cr-td-venue">${cellText(c.venue)}</div>
-        <div class="grid-cell cr-td-coach">${cellText(c.main_coach)}</div>
-        <div class="grid-cell cr-td-capacity">${capacityText}</div>
+        <div class="grid-cell cr-td-venue" title="${escapeHtml(c.venue || '')}">${cellText(c.venue)}</div>
+        <div class="grid-cell cr-td-coach" title="${escapeHtml(c.main_coach || '')}">${cellText(c.main_coach)}</div>
         <div class="grid-cell cr-td-fee">${feeHtml(c.fee, c.fee2)}</div>
         <div class="grid-cell cr-td-status">${statusBadge}</div>
         <div class="grid-cell grid-cell-arrow"><span class="material-icons list-item-arrow">chevron_right</span></div>
