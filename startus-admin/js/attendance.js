@@ -88,7 +88,18 @@ export async function renderAttendanceList() {
       .order('date', { ascending: false });
 
     if (currentClassroom && currentClassroom.startsWith('view:')) {
-      query = query.eq('view_id', currentClassroom.replace('view:', ''));
+      const viewId = currentClassroom.replace('view:', '');
+      const views = getActiveAppViews();
+      const view = views.find(v => v.id === viewId);
+      const viewTags = view?.classroom_tags || [];
+      const viewClassroomIds = classrooms
+        .filter(c => c.calendar_tag && viewTags.includes(c.calendar_tag))
+        .map(c => c.id);
+      if (viewClassroomIds.length > 0) {
+        query = query.or(`view_id.eq.${viewId},classroom_id.in.(${viewClassroomIds.join(',')})`);
+      } else {
+        query = query.eq('view_id', viewId);
+      }
     } else if (currentClassroom && currentClassroom.startsWith('group:')) {
       query = query.eq('attendance_group', currentClassroom.replace('group:', ''));
     } else if (currentClassroom) {

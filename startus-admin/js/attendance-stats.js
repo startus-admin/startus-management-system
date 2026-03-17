@@ -31,7 +31,7 @@ export async function initAttendanceStats() {
   // 教室一覧を取得
   const { data } = await supabase
     .from('classrooms')
-    .select('id, name, attendance_group')
+    .select('id, name, attendance_group, calendar_tag')
     .eq('is_active', true)
     .order('display_order')
     .order('name');
@@ -113,7 +113,18 @@ async function loadAttendanceStats() {
       .order('date', { ascending: false });
 
     if (classroomId && classroomId.startsWith('view:')) {
-      eventsQuery = eventsQuery.eq('view_id', classroomId.replace('view:', ''));
+      const viewId = classroomId.replace('view:', '');
+      const views = getActiveAppViews();
+      const view = views.find(v => v.id === viewId);
+      const viewTags = view?.classroom_tags || [];
+      const viewClassroomIds = classrooms
+        .filter(c => viewTags.includes(c.calendar_tag))
+        .map(c => c.id);
+      if (viewClassroomIds.length > 0) {
+        eventsQuery = eventsQuery.or(`view_id.eq.${viewId},classroom_id.in.(${viewClassroomIds.join(',')})`);
+      } else {
+        eventsQuery = eventsQuery.eq('view_id', viewId);
+      }
     } else if (classroomId && classroomId.startsWith('group:')) {
       eventsQuery = eventsQuery.eq('attendance_group', classroomId.replace('group:', ''));
     } else if (classroomId) {
