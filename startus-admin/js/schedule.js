@@ -295,7 +295,7 @@ async function fetchApplicationCounts(startDate, endDate) {
   // - 体験: reviewed（受付済み）以降のステータス
   // - その他: approved（承認）のみ
   // 日付フィルタは使わず、クライアント側でアクション日によりフィルタする
-  const [trialsRes, joinsRes, withdrawalsRes, suspensionsRes, reinstatementsRes] = await Promise.all([
+  const [trialsRes, joinsRes, withdrawalsRes, suspensionsRes, reinstatementsRes, transfersRes] = await Promise.all([
     supabase
       .from('applications')
       .select('id, type, status, form_data, created_at')
@@ -321,6 +321,11 @@ async function fetchApplicationCounts(startDate, endDate) {
       .select('id, type, status, form_data, created_at')
       .eq('type', 'reinstatement')
       .eq('status', 'approved'),
+    supabase
+      .from('applications')
+      .select('id, type, status, form_data, created_at')
+      .eq('type', 'transfer')
+      .eq('status', 'approved'),
   ]);
 
   cachedAppData = {
@@ -329,6 +334,7 @@ async function fetchApplicationCounts(startDate, endDate) {
     withdrawals: withdrawalsRes.data || [],
     suspensions: suspensionsRes.data || [],
     reinstatements: reinstatementsRes.data || [],
+    transfers: transfersRes.data || [],
   };
 
   return cachedAppData;
@@ -446,6 +452,20 @@ function getReinstatementsForEvent(enrichedEvent, appData) {
     const fd = r.form_data || {};
     const dateMatch = normalizeDate(fd.return_date) === eventDate;
     const classMatch = matchesClassroom(classroomName, toClassList(fd, 'desired_classes'));
+    return dateMatch && classMatch;
+  });
+}
+
+/** 振替: transfer_date（振替希望日）+ transfer_class（振替先教室）でマッチ */
+function getTransfersForEvent(enrichedEvent, appData) {
+  if (!appData || !appData.transfers || !enrichedEvent.classroom) return [];
+  const eventDate = toISODate(new Date(enrichedEvent.start));
+  const classroomName = enrichedEvent.classroomName;
+
+  return appData.transfers.filter(t => {
+    const fd = t.form_data || {};
+    const dateMatch = normalizeDate(fd.transfer_date) === eventDate;
+    const classMatch = matchesClassroom(classroomName, toClassList(fd, 'transfer_class'));
     return dateMatch && classMatch;
   });
 }
@@ -624,6 +644,7 @@ function renderWeekView(events, appData) {
       const withdrawals = getWithdrawalsForEvent(e, appData);
       const suspensions = getSuspensionsForEvent(e, appData);
       const reinstatements = getReinstatementsForEvent(e, appData);
+      const transfers = getTransfersForEvent(e, appData);
 
       return `
         <div class="sch-week-card" onclick="window.memberApp.showScheduleEventDetail('${escapeHtml(e.id)}')">
@@ -637,6 +658,7 @@ function renderWeekView(events, appData) {
           </div>
           <div class="sch-event-counts">
             ${trials.length > 0 ? `<span class="sch-count sch-count-trial">体験${trials.length}</span>` : ''}
+            ${transfers.length > 0 ? `<span class="sch-count sch-count-transfer">振替${transfers.length}</span>` : ''}
             ${joins.length > 0 ? `<span class="sch-count sch-count-join">入会${joins.length}</span>` : ''}
             ${withdrawals.length > 0 ? `<span class="sch-count sch-count-withdrawal">退会${withdrawals.length}</span>` : ''}
             ${suspensions.length > 0 ? `<span class="sch-count sch-count-suspension">休会${suspensions.length}</span>` : ''}
@@ -795,17 +817,23 @@ const SUMMARY_FIELDS = {
     { key: 'desired_classes', label: '対象教室' },
     { key: 'return_date', label: '復会予定日' },
   ],
+  transfer: [
+    { key: 'absent_class', label: '休んだ教室' },
+    { key: 'absent_date', label: '休んだ日' },
+    { key: 'transfer_class', label: '振替先教室' },
+    { key: 'transfer_date', label: '振替希望日' },
+  ],
 };
 
 const TYPE_LABELS = {
   trial: '体験', join: '入会', withdrawal: '退会',
-  suspension: '休会', reinstatement: '復会',
+  suspension: '休会', reinstatement: '復会', transfer: '振替',
 };
 
 function renderAppSummaryCard(app, type) {
   const fd = app.form_data || {};
   const fields = SUMMARY_FIELDS[type] || [];
-  const detailFunc = type === 'trial' ? 'showTrialDetail' : 'showApplicationDetail';
+  const detailFunc = type === 'trial' ? 'showTrialDetail' : type === 'transfer' ? 'showTransferDetail' : 'showApplicationDetail';
 
   const fieldsHtml = fields.map(f => {
     let value = fd[f.key];
@@ -828,10 +856,11 @@ function renderAppSummaryCard(app, type) {
 }
 
 function renderAppRow(app, type) {
+  const displayName = app.form_data?.name || app.form_data?.member_name || '---';
   return `
     <div class="sch-detail-app-wrapper">
       <div class="sch-detail-app-row" onclick="window.memberApp.toggleAppSummary('${app.id}', '${type}')">
-        <span>${escapeHtml(app.form_data?.name || '---')}</span>
+        <span>${escapeHtml(displayName)}</span>
         <div class="sch-detail-app-row-right">
           <span class="badge badge-app-${app.status}">${escapeHtml(statusLabel(app.status))}</span>
           <span class="material-icons sch-detail-app-chevron" id="sch-chevron-${app.id}" style="font-size:18px;color:var(--gray-400)">expand_more</span>
@@ -855,7 +884,7 @@ export function toggleAppSummary(appId, type) {
     const allApps = cachedAppData
       ? [...(cachedAppData.trials || []), ...(cachedAppData.joins || []),
          ...(cachedAppData.withdrawals || []), ...(cachedAppData.suspensions || []),
-         ...(cachedAppData.reinstatements || [])]
+         ...(cachedAppData.reinstatements || []), ...(cachedAppData.transfers || [])]
       : [];
     const app = allApps.find(a => a.id === appId);
     if (!app) return;
@@ -875,6 +904,7 @@ export function showScheduleEventDetail(eventId) {
   const withdrawals = cachedAppData ? getWithdrawalsForEvent(e, cachedAppData) : [];
   const suspensions = cachedAppData ? getSuspensionsForEvent(e, cachedAppData) : [];
   const reinstatements = cachedAppData ? getReinstatementsForEvent(e, cachedAppData) : [];
+  const transfers = cachedAppData ? getTransfersForEvent(e, cachedAppData) : [];
 
   const eventDate = new Date(e.start);
   const dateLabel = `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日（${DAY_NAMES[eventDate.getDay()]}）`;
@@ -897,6 +927,10 @@ export function showScheduleEventDetail(eventId) {
 
   const reinstatementRows = reinstatements.length > 0
     ? reinstatements.map(r => renderAppRow(r, 'reinstatement')).join('')
+    : '<p class="text-muted">なし</p>';
+
+  const transferRows = transfers.length > 0
+    ? transfers.map(t => renderAppRow(t, 'transfer')).join('')
     : '<p class="text-muted">なし</p>';
 
   const content = `
@@ -926,6 +960,11 @@ export function showScheduleEventDetail(eventId) {
       <div class="sch-detail-section">
         <h4>体験申込 (${trials.length}件)</h4>
         ${trialRows}
+      </div>
+
+      <div class="sch-detail-section">
+        <h4>振替予定 (${transfers.length}件)</h4>
+        ${transferRows}
       </div>
 
       <div class="sch-detail-section">

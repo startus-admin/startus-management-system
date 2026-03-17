@@ -3529,6 +3529,7 @@ select.form-control {
 }
 
 .sch-count-trial { background: #fef3c7; color: #92400e; }
+.sch-count-transfer { background: #dbeafe; color: #1e40af; }
 .sch-count-join { background: #dcfce7; color: #166534; }
 .sch-count-withdrawal { background: #fef2f2; color: #991b1b; }
 .sch-count-suspension { background: #f3e8ff; color: #6b21a8; }
