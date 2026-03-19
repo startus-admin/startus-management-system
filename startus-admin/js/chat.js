@@ -4,7 +4,6 @@ import { supabase } from './supabase.js';
 import { escapeHtml } from './utils.js';
 import { showToast } from './app.js';
 import { getStaffById, getStaffByEmail, getAllActiveStaff } from './staff.js';
-import { initAiChat, renderAiChat, aiChatBack } from './ai-chat.js';
 
 // --- State ---
 
@@ -191,12 +190,6 @@ export async function initChat(staffInfo) {
   // Prevent wheel events inside chat sidebar from scrolling the background page
   const sidebar = document.getElementById('chat-sidebar');
   if (sidebar) sidebar.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
-
-  // AIチャット初期化
-  initAiChat(currentStaff);
-
-  // チャンネルリストに戻る関数をAIチャットに公開
-  window._chatNav = { backToChannelList };
 }
 
 export function destroyChat() {
@@ -661,18 +654,7 @@ function renderChannelList() {
   }
   html += renderSection('channels', 'チャンネル', groupChannels);
   html += renderSection('dms', 'ダイレクトメッセージ', dmChannels, true);
-  // AIアシスタントチャンネル（常に先頭に表示）
-  const aiChannelItem = `
-    <div class="chat-channel-item ai-channel-item"
-         onclick="window.memberApp.openAiChat()">
-      <span class="material-icons chat-channel-icon" style="color:#8b5cf6">smart_toy</span>
-      <div class="chat-channel-info">
-        <div class="chat-channel-name">AI アシスタント</div>
-        <div class="chat-channel-desc">不具合・改善要望を報告</div>
-      </div>
-    </div>`;
-
-  body.innerHTML = `<div class="chat-channel-list">${aiChannelItem}${html}</div>`;
+  body.innerHTML = `<div class="chat-channel-list">${html}</div>`;
 }
 
 function renderSection(key, label, items, showAddBtn = false) {
@@ -1692,14 +1674,6 @@ function hideNewDmPicker() {
 async function startDm(staffId) {
   hideNewDmPicker();
   await openDmWithStaff(staffId);
-}
-
-// --- AI Chat ---
-
-export function openAiChat() {
-  currentView = 'ai-chat';
-  currentChannelId = null;
-  renderAiChat();
 }
 
 // ===== Exported aliases for window.memberApp =====
