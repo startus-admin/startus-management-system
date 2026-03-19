@@ -1,10 +1,27 @@
 const Stripe = require('stripe');
 
+const ALLOWED_ORIGINS = [
+  'https://startus-management-system-iota.vercel.app',
+  'https://startus-shop-six.vercel.app',
+  'https://member-manager-nu.vercel.app',
+];
+const DEFAULT_ORIGIN = 'https://startus-management-system-iota.vercel.app';
+
+function getAllowedOrigin(req) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    return origin;
+  }
+  return DEFAULT_ORIGIN;
+}
+
 module.exports = async (req, res) => {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS - restrict to allowed origins
+  const allowedOrigin = getAllowedOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -37,21 +54,20 @@ module.exports = async (req, res) => {
       quantity: item.quantity,
     }));
 
-    const origin = req.headers.origin || req.headers.referer?.replace(/\/+$/, '') || 'https://member-manager-nu.vercel.app';
-
+    // Use validated origin to prevent open redirect
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'payment',
       customer_email: buyerEmail || undefined,
       metadata: { orderId, orderNumber },
-      success_url: `${origin}/shop/#/confirmation/${orderNumber}?payment=success`,
-      cancel_url: `${origin}/shop/#/confirmation/${orderNumber}?payment=cancelled`,
+      success_url: `${allowedOrigin}/shop/#/confirmation/${orderNumber}?payment=success`,
+      cancel_url: `${allowedOrigin}/shop/#/confirmation/${orderNumber}?payment=cancelled`,
     });
 
     res.status(200).json({ sessionId: session.id, url: session.url });
   } catch (error) {
     console.error('Stripe session error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Payment session creation failed' });
   }
 };
