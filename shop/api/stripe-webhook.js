@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
     event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).send('Webhook signature verification failed');
   }
 
   if (event.type === 'checkout.session.completed') {
@@ -48,13 +48,13 @@ module.exports = async (req, res) => {
 
       if (error) {
         console.error('RPC error:', error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: 'Payment processing failed' });
       }
 
       console.log('Payment confirmed for order:', orderId, data);
     } catch (e) {
       console.error('Supabase error:', e);
-      return res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: 'Payment processing failed' });
     }
   }
 

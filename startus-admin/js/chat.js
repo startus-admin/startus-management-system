@@ -793,6 +793,8 @@ function showChatContextMenu(msgId, x, y) {
   closeChatContextMenu();
   const msg = messages.find(m => m.id === msgId);
   if (!msg || msg.is_deleted || msg.message_type === 'system') return;
+  // Sanitize msgId for safe use in onclick attribute (allow UUID chars only)
+  const safeId = String(msgId).replace(/[^a-zA-Z0-9\-]/g, '');
 
   const isOwn = msg.sender_id === currentStaff?.id;
   const isText = msg.message_type === 'text';
@@ -800,24 +802,24 @@ function showChatContextMenu(msgId, x, y) {
 
   let items = '';
   // リプライ — all non-system messages
-  items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxReply('${msgId}')">
+  items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxReply('${safeId}')">
     <span class="material-icons">reply</span><span>リプライ</span></div>`;
   // コピー — text, task, link, file
   if (isCopyable) {
-    items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxCopy('${msgId}')">
+    items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxCopy('${safeId}')">
       <span class="material-icons">content_copy</span><span>コピー</span></div>`;
   }
   // 転送 — all message types
-  items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxForward('${msgId}')">
+  items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxForward('${safeId}')">
     <span class="material-icons">forward</span><span>転送</span></div>`;
   // 編集 — own text only
   if (isOwn && isText) {
-    items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxEdit('${msgId}')">
+    items += `<div class="chat-ctx-item" onclick="window.memberApp.chatCtxEdit('${safeId}')">
       <span class="material-icons">edit</span><span>編集</span></div>`;
   }
   // 削除 — own messages only
   if (isOwn) {
-    items += `<div class="chat-ctx-item chat-ctx-item--danger" onclick="window.memberApp.chatCtxDelete('${msgId}')">
+    items += `<div class="chat-ctx-item chat-ctx-item--danger" onclick="window.memberApp.chatCtxDelete('${safeId}')">
       <span class="material-icons">delete</span><span>削除</span></div>`;
   }
 
@@ -1313,16 +1315,17 @@ export function updateUnreadBadge() {
 function chatEditMessage(msgId) {
   const msg = messages.find(m => m.id === msgId);
   if (!msg || msg.sender_id !== currentStaff?.id || msg.message_type !== 'text') return;
-  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  const safeId = String(msgId).replace(/[^a-zA-Z0-9\-]/g, '');
+  const el = document.querySelector(`[data-msg-id="${safeId}"]`);
   if (!el) return;
   const bodyEl = el.querySelector('.chat-msg-body');
   if (!bodyEl) return;
 
   bodyEl.outerHTML = `<div class="chat-msg-body chat-msg-editing">
-    <textarea class="chat-edit-textarea" id="chat-edit-${msgId}">${escapeHtml(msg.body)}</textarea>
+    <textarea class="chat-edit-textarea" id="chat-edit-${safeId}">${escapeHtml(msg.body)}</textarea>
     <div class="chat-edit-actions">
-      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelEdit('${msgId}')">キャンセル</button>
-      <button class="btn btn-primary btn-sm" onclick="window.memberApp.chatSaveEdit('${msgId}')">保存</button>
+      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelEdit('${safeId}')">キャンセル</button>
+      <button class="btn btn-primary btn-sm" onclick="window.memberApp.chatSaveEdit('${safeId}')">保存</button>
     </div>
     <div class="chat-edit-hint">Escでキャンセル・Ctrl+Enterで保存</div>
   </div>`;
@@ -1382,7 +1385,8 @@ function reRenderMessage(msgId) {
 function chatDeleteMessage(msgId) {
   const msg = messages.find(m => m.id === msgId);
   if (!msg || msg.sender_id !== currentStaff?.id) return;
-  const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+  const safeId = String(msgId).replace(/[^a-zA-Z0-9\-]/g, '');
+  const el = document.querySelector(`[data-msg-id="${safeId}"]`);
   if (!el) return;
   const bodyEl = el.querySelector('.chat-msg-body') || el.querySelector('.chat-task-card') || el.querySelector('.chat-file-image') || el.querySelector('.chat-file-card') || el.querySelector('.chat-link-card');
   if (!bodyEl) return;
@@ -1391,8 +1395,8 @@ function chatDeleteMessage(msgId) {
   bodyEl.outerHTML = `<div class="chat-delete-confirm">
     <span>このメッセージを削除しますか？</span>
     <div class="chat-delete-actions">
-      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelDelete('${msgId}')">キャンセル</button>
-      <button class="btn btn-danger btn-sm" onclick="window.memberApp.chatConfirmDelete('${msgId}')">削除する</button>
+      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelDelete('${safeId}')">キャンセル</button>
+      <button class="btn btn-danger btn-sm" onclick="window.memberApp.chatConfirmDelete('${safeId}')">削除する</button>
     </div>
   </div>`;
 

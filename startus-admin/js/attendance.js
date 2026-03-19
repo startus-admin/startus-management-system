@@ -573,7 +573,7 @@ export async function openAttendanceModal(eventId) {
     </div>` : ''}`;
 
   const dateLabel = formatDateShort(event.date);
-  openModal(`出欠入力 - ${dateLabel} ${displayTitle}`, content);
+  openModal(`出欠入力 - ${escapeHtml(dateLabel)} ${escapeHtml(displayTitle)}`, content);
 }
 
 // ============================================

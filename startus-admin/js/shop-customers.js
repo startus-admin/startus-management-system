@@ -184,7 +184,7 @@ export async function showCustomerDetail(email) {
     </div>`;
 
   setModalWide(true);
-  openModal(`顧客詳細: ${customer.buyerName}`, content);
+  openModal(`顧客詳細: ${escapeHtml(customer.buyerName)}`, content);
 }
 
 // --- Search ---
