@@ -152,7 +152,7 @@ export function showProductDetail(productId) {
     </div>`;
 
   setModalWide(true);
-  openModal(`商品詳細: ${p.name}`, content);
+  openModal(`商品詳細: ${escapeHtml(p.name)}`, content);
 }
 
 // --- Product add/edit form ---

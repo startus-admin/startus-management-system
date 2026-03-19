@@ -1318,11 +1318,12 @@ function chatEditMessage(msgId) {
   const bodyEl = el.querySelector('.chat-msg-body');
   if (!bodyEl) return;
 
+  const safeId = escapeHtml(msgId);
   bodyEl.outerHTML = `<div class="chat-msg-body chat-msg-editing">
-    <textarea class="chat-edit-textarea" id="chat-edit-${msgId}">${escapeHtml(msg.body)}</textarea>
+    <textarea class="chat-edit-textarea" id="chat-edit-${safeId}">${escapeHtml(msg.body)}</textarea>
     <div class="chat-edit-actions">
-      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelEdit('${msgId}')">キャンセル</button>
-      <button class="btn btn-primary btn-sm" onclick="window.memberApp.chatSaveEdit('${msgId}')">保存</button>
+      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelEdit('${safeId}')">キャンセル</button>
+      <button class="btn btn-primary btn-sm" onclick="window.memberApp.chatSaveEdit('${safeId}')">保存</button>
     </div>
     <div class="chat-edit-hint">Escでキャンセル・Ctrl+Enterで保存</div>
   </div>`;
@@ -1388,11 +1389,12 @@ function chatDeleteMessage(msgId) {
   if (!bodyEl) return;
 
   const origHtml = bodyEl.outerHTML;
+  const safeDeleteId = escapeHtml(msgId);
   bodyEl.outerHTML = `<div class="chat-delete-confirm">
     <span>このメッセージを削除しますか？</span>
     <div class="chat-delete-actions">
-      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelDelete('${msgId}')">キャンセル</button>
-      <button class="btn btn-danger btn-sm" onclick="window.memberApp.chatConfirmDelete('${msgId}')">削除する</button>
+      <button class="btn btn-secondary btn-sm" onclick="window.memberApp.chatCancelDelete('${safeDeleteId}')">キャンセル</button>
+      <button class="btn btn-danger btn-sm" onclick="window.memberApp.chatConfirmDelete('${safeDeleteId}')">削除する</button>
     </div>
   </div>`;
 
