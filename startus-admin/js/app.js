@@ -78,7 +78,7 @@ import { updateTabBadges, startBadgePolling } from './notifications.js';
 import {
   initChat, toggleChat, sendTaskMessage, openRefFromChat,
   openDmWithStaff, chatOpenChannel, chatBackToList, chatSendMessage,
-  loadUnreadCounts, updateUnreadBadge,
+  loadUnreadCounts, updateUnreadBadge, openAiChat,
   chatToggleSection, chatShowNewDmPicker, chatHideNewDmPicker, chatStartDm,
   chatEditMessage, chatSaveEdit, chatCancelEdit,
   chatDeleteMessage, chatConfirmDelete, chatCancelDelete,
@@ -89,6 +89,7 @@ import {
   chatCtxForward, chatForwardTo, chatCloseForwardPicker,
   chatCancelReply
 } from './chat.js';
+import { aiChatSend, aiChatSuggest, aiChatBack } from './ai-chat.js';
 import { initScheduleManager } from './sm-manager.js';
 import {
   loadShopOrders, showOrderDetail, confirmOrderPayment,
@@ -640,6 +641,10 @@ window.memberApp = {
   chatForwardTo,
   chatCloseForwardPicker,
   chatCancelReply,
+  openAiChat,
+  aiChatSend,
+  aiChatSuggest,
+  aiChatBack,
   toggleSearchBar,
   isAdmin,
   toggleSidebar,
