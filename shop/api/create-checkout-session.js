@@ -1,8 +1,16 @@
 const Stripe = require('stripe');
 
+const ALLOWED_ORIGINS = [
+  'https://startus-management-system-iota.vercel.app',
+  'https://startus-shop-six.vercel.app',
+  'https://attendance-app-alpha-kohl.vercel.app',
+];
+
 module.exports = async (req, res) => {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS — whitelist only known origins
+  const reqOrigin = req.headers.origin;
+  const allowedOrigin = ALLOWED_ORIGINS.includes(reqOrigin) ? reqOrigin : ALLOWED_ORIGINS[0];
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -37,7 +45,8 @@ module.exports = async (req, res) => {
       quantity: item.quantity,
     }));
 
-    const origin = req.headers.origin || req.headers.referer?.replace(/\/+$/, '') || 'https://startus-shop-six.vercel.app';
+    const rawOrigin = req.headers.origin || req.headers.referer?.replace(/\/+$/, '');
+    const origin = ALLOWED_ORIGINS.includes(rawOrigin) ? rawOrigin : ALLOWED_ORIGINS[0];
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -52,6 +61,6 @@ module.exports = async (req, res) => {
     res.status(200).json({ sessionId: session.id, url: session.url });
   } catch (error) {
     console.error('Stripe session error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to create checkout session' });
   }
 };

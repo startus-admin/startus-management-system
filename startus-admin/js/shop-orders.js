@@ -202,7 +202,7 @@ export function showOrderDetail(orderId) {
     </div>`;
 
   setModalWide(true);
-  openModal(`注文詳細 ${order.orderNumber}`, content);
+  openModal(`注文詳細 ${escapeHtml(order.orderNumber)}`, content);
 }
 
 // --- Actions ---
